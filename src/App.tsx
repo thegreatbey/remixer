@@ -1,57 +1,56 @@
-//ALWAYS use this import to be safe:
-import React, { useState } from 'react'
+import React, { useState } from 'react';
+import { generateResponse } from './utils/claude';
 
-import axios from 'axios'
+function App(): JSX.Element {
+  const [inputText, setInputText] = useState<string>('');
+  const [outputText, setOutputText] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-function App() {
-  console.log('App is rendering!')
-
-  const [input, setInput] = useState('')
-  const [output, setOutput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleRemix = async () => {
-    setLoading(true)
+  const handleRemix = async (): Promise<void> => {
+    if (!inputText.trim()) return;
+    
+    setIsLoading(true);
     try {
-      const response = await axios.post('http://localhost:3000/api/remix', { text: input })
-      setOutput(response.data)
+      const prompt = `Transform the following content into something new and different. You can change anything about it - style, format, tone, perspective, etc. Here's the content to remix:\n\n${inputText}`;
+      const response = await generateResponse(prompt);
+      setOutputText(response);
     } catch (error) {
-      console.error('Error:', error)
-      setOutput('Error occurred while remixing')
+      console.error("Error:", error);
+      alert("Error: " + (error as Error).message);
+    } finally {
+      setIsLoading(false);
     }
-    setLoading(false)
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-center">Content Remix</h1>
-        
+    <div className="max-w-3xl mx-auto p-5">
+      <h1 className="text-3xl font-bold text-center mb-8">Remixer</h1>
+      <div className="mb-6">
         <textarea
-          className="w-full h-40 p-4 border rounded-lg"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Paste your content here..."
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Enter anything here to remix..."
+          rows={5}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
         />
-
-        <button
-          onClick={handleRemix}
-          disabled={loading || !input}
-          className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
-        >
-          {loading ? 'Remixing...' : 'Remix Content'}
-        </button>
-
-        {output && (
-          <textarea
-            className="w-full h-40 p-4 border rounded-lg"
-            value={output}
-            readOnly
-          />
-        )}
       </div>
+      <button 
+        onClick={handleRemix}
+        disabled={isLoading || !inputText.trim()}
+        className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        {isLoading ? 'Remixing...' : 'Remix Content'}
+      </button>
+      {outputText && (
+        <div className="mt-8 p-4 border border-gray-300 rounded-lg">
+          <h2 className="text-xl font-semibold mb-4">Remixed Content:</h2>
+          <div className="whitespace-pre-wrap text-gray-700">
+            {outputText}
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
-export default App 
+export default App; 
