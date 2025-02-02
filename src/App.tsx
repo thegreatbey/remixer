@@ -1,56 +1,65 @@
-import React, { useState } from 'react';
-import { generateResponse } from './utils/claude';
+import React from 'react'
+import { useState } from 'react'
+import { generateResponse } from './utils/claude'
 
-function App(): JSX.Element {
-  const [inputText, setInputText] = useState<string>('');
-  const [outputText, setOutputText] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+function App() {
+  const [inputText, setInputText] = useState('')
+  const [outputText, setOutputText] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleRemix = async (): Promise<void> => {
-    if (!inputText.trim()) return;
-    
-    setIsLoading(true);
+  const handleRemix = async () => {
+    setIsLoading(true)
     try {
-      const prompt = `Transform the following content into something new and different. You can change anything about it - style, format, tone, perspective, etc. Here's the content to remix:\n\n${inputText}`;
-      const response = await generateResponse(prompt);
-      setOutputText(response);
+      const remixedText = await generateResponse(inputText)
+      setOutputText(remixedText)
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error: " + (error as Error).message);
-    } finally {
-      setIsLoading(false);
+      console.error('Error remixing text:', error)
     }
-  };
+    setIsLoading(false)
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(outputText)
+  }
 
   return (
-    <div className="max-w-3xl mx-auto p-5">
-      <h1 className="text-3xl font-bold text-center mb-8">Remixer</h1>
-      <div className="mb-6">
+    <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <h1 className="text-3xl font-bold text-center">Content Remix</h1>
+        
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Enter anything here to remix..."
-          rows={5}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+          placeholder="Paste your content here..."
+          className="w-full h-48 p-4 border rounded-lg"
         />
-      </div>
-      <button 
-        onClick={handleRemix}
-        disabled={isLoading || !inputText.trim()}
-        className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-      >
-        {isLoading ? 'Remixing...' : 'Remix Content'}
-      </button>
-      {outputText && (
-        <div className="mt-8 p-4 border border-gray-300 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">Remixed Content:</h2>
-          <div className="whitespace-pre-wrap text-gray-700">
-            {outputText}
+
+        <button
+          onClick={handleRemix}
+          disabled={isLoading || !inputText}
+          className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg disabled:opacity-50"
+        >
+          {isLoading ? 'Remixing...' : 'Remix Content'}
+        </button>
+
+        {outputText && (
+          <div className="space-y-4">
+            <textarea
+              value={outputText}
+              readOnly
+              className="w-full h-48 p-4 border rounded-lg"
+            />
+            <button
+              onClick={handleCopy}
+              className="w-full py-2 px-4 bg-green-500 text-white rounded-lg"
+            >
+              Copy to Clipboard
+            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  );
+  )
 }
 
-export default App; 
+export default App 
