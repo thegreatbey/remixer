@@ -1,38 +1,27 @@
-import axios from 'axios'
-
-const CLAUDE_API_URL = process.env.REACT_APP_CLAUDE_API_URL
-const CLAUDE_API_KEY = process.env.REACT_APP_CLAUDE_API_KEY
-
-if (!CLAUDE_API_KEY) {
-  console.warn('Missing CLAUDE_API_KEY environment variable')
-}
-
-const claudeApi = axios.create({
-  baseURL: CLAUDE_API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${CLAUDE_API_KEY}`
-  }
-})
-
 export const remixContent = async (content: string) => {
   try {
-    const response = await claudeApi.post('/v1/messages', {
-      model: 'claude-3-haiku-20240307',
+    console.log('Sending prompt:', content);
+    const response = await fetch('/api/remix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt: content }),
+    });
 
+    if (!response.ok) {
+      throw new Error('Failed to fetch');
+    }
 
-      messages: [{
-        role: 'user',
-        content: `Please remix the following content in a creative way: ${content}`
-      }],
-      max_tokens: 1024
-    })
+    const rawResponse = await response.text();  // Get raw response first
+    console.log('Raw response:', rawResponse);  // Log it
     
-    return response.data.content[0].text
+    const data = JSON.parse(rawResponse);       // Then parse it
+    console.log('Parsed data:', data);          // Log parsed data
+    
+    return data.content;
   } catch (error) {
-    console.error('Error calling Claude API:', error)
-    throw error
+    console.error('Error calling remix API:', error);
+    throw error;
   }
-}
-
-export default claudeApi 
+};
