@@ -1,40 +1,29 @@
 import Anthropic from '@anthropic-ai/sdk';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const anthropic = new Anthropic({
   apiKey: process.env.CLAUDE_API_KEY,
+  dangerouslyAllowBrowser: true  // Required for browser usage
 });
 
-export async function remixContent(content: string): Promise<string> {
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-3-sonnet-20240229',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `Please remix the following content in a creative way: ${content}`
-      }]
-    });
 
-    return response.content[0].value;
-  } catch (error) {
-    console.error('Error remixing content:', error);
-    throw error;
-  }
-}
-
-export const generateResponse = async (prompt: string): Promise<string> => {
+export const remixContent = async (prompt: string): Promise<string> => {
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
+    const response = await fetch('/api/remix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
     });
-    return response.content[0].value;
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch');
+    }
+    
+    const data = await response.json();
+    return data.content;
   } catch (error) {
-    console.error('Error calling Claude API:', error);
+    console.error('Error calling remix API:', error);
     throw error;
   }
 }; 

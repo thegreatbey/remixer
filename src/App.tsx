@@ -1,6 +1,6 @@
 import React from 'react'
 import { useState } from 'react'
-import { generateResponse } from './utils/claude'
+import { remixContent } from './utils/claude'
 
 function App() {
   const [inputText, setInputText] = useState('')
@@ -10,7 +10,7 @@ function App() {
   const handleRemix = async () => {
     setIsLoading(true)
     try {
-      const remixedText = await generateResponse(inputText)
+      const remixedText = await remixContent(inputText)
       setOutputText(remixedText)
     } catch (error) {
       console.error('Error remixing text:', error)

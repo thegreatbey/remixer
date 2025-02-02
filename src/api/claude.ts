@@ -18,7 +18,8 @@ const claudeApi = axios.create({
 export const remixContent = async (content: string) => {
   try {
     const response = await claudeApi.post('/v1/messages', {
-      model: 'claude-3-sonnet-20240229',
+      model: 'claude-3-haiku-20240307',
+
 
       messages: [{
         role: 'user',

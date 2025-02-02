@@ -16,16 +16,16 @@ const anthropic = new Anthropic({
 
 app.post('/api/remix', async (req, res) => {
   try {
-    const { text } = req.body;
+    const { prompt } = req.body;
     const response = await anthropic.messages.create({
-      model: "claude-3-opus-20240229",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: text }]
+      model: "claude-3-haiku-20240307",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
     });
-    res.json(response.content[0].text);
+    res.json({ content: response.content[0].value });
   } catch (error) {
-    console.error('Server Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error calling Claude API:', error);
+    res.status(500).json({ error: 'Failed to process request' });
   }
 });
 
