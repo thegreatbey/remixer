@@ -52,21 +52,29 @@ app.get('/api/test', async (req, res) => {
 });
 
 app.post('/api/tweets', async (req, res) => {
-  const anthropic = new Anthropic({
-    apiKey: process.env.CLAUDE_API_KEY
-  });
-
   try {
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
-      max_tokens: 100,
+      max_tokens: 150,
+      system: "Return ONLY a JSON array with exactly 3 very short tweets. Please emphasize the reply or conversational nature of the tweet. Do dot return user's original sentences. Each tweet MUST be under 50 characters. Format: [\"short tweet 1\",\"short tweet 2\",\"short tweet 3\"]",
       messages: [{
         role: "user",
-        content: `Create exactly 3 unique, engaging tweets from this content. Each tweet must be 33 tokens or less. Format as a JSON array of strings. Content: ${req.body.content}`
+        content: req.body.content
       }]
     });
-    res.json(response.content[0].text);
+    
+    console.log('Claude response:', response.content[0].text); // Debug log
+    
+    try {
+      const tweets = JSON.parse(response.content[0].text);
+      res.json(tweets);
+    } catch (parseError) {
+      console.error('Parse error:', parseError);
+      console.error('Raw text:', response.content[0].text);
+      res.status(500).json({ error: 'Failed to parse tweets' });
+    }
   } catch (error) {
+    console.error('Claude API error:', error);
     res.status(500).json({ error: 'Failed to generate tweets' });
   }
 });
