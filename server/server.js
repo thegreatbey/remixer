@@ -3,8 +3,15 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import Anthropic from '@anthropic-ai/sdk';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from the server directory
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const app = express();
 
 app.use(cors());
@@ -20,7 +27,7 @@ app.post('/api/remix', async (req, res) => {
     const { prompt } = req.body;
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
-      max_tokens: 1000,
+      max_tokens: 100,
       messages: [{ role: "user", content: prompt }],
     });
     
@@ -41,6 +48,26 @@ app.get('/api/test', async (req, res) => {
   } catch (error) {
     console.error('Test Error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/tweets', async (req, res) => {
+  const anthropic = new Anthropic({
+    apiKey: process.env.CLAUDE_API_KEY
+  });
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 100,
+      messages: [{
+        role: "user",
+        content: `Create exactly 3 unique, engaging tweets from this content. Each tweet must be 33 tokens or less. Format as a JSON array of strings. Content: ${req.body.content}`
+      }]
+    });
+    res.json(response.content[0].text);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate tweets' });
   }
 });
 

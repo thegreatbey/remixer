@@ -1,27 +1,18 @@
-export const remixContent = async (content: string) => {
+// Remove the direct Claude API call with dangerouslyAllowBrowser
+// Instead, call our server endpoint
+export const tweetsFromPost = async (content: string): Promise<string[]> => {
   try {
-    console.log('Sending prompt:', content);
-    const response = await fetch('/api/remix', {
+    const response = await fetch('/api/tweets', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt: content }),
+      body: JSON.stringify({ content })
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch');
-    }
-
-    const rawResponse = await response.text();  // Get raw response first
-    console.log('Raw response:', rawResponse);  // Log it
     
-    const data = JSON.parse(rawResponse);       // Then parse it
-    console.log('Parsed data:', data);          // Log parsed data
-    
-    return data.content;
+    return await response.json();
   } catch (error) {
-    console.error('Error calling remix API:', error);
-    throw error;
+    console.error('Error generating tweets:', error);
+    return [];
   }
 };
