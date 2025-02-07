@@ -1,6 +1,6 @@
 export const tweetsFromPost = async (content: string): Promise<string[]> => {
   try {
-    const response = await fetch('/api/tweets', {
+    const response = await fetch('http://localhost:3000/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -9,6 +9,8 @@ export const tweetsFromPost = async (content: string): Promise<string[]> => {
     });
 
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error('API Error:', errorData);
       throw new Error('Failed to generate tweets');
     }
     

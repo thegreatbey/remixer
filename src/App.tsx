@@ -1,126 +1,146 @@
 import { useState } from 'react'
 import { tweetsFromPost } from './api/claude'
+import SavedTweets from './components/SavedTweets'
 
-const App: React.FC = () => {
+interface Tweet {
+  id: string;
+  content: string;
+  created_at: string;
+}
+
+const App = () => {
   const [inputText, setInputText] = useState<string>('')
-  const [tweets, setTweets] = useState<string[]>([])
+  const [tweets, setTweets] = useState<Tweet[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [isPopoutVisible, setIsPopoutVisible] = useState(false)
+  const [savedTweets, setSavedTweets] = useState<Tweet[]>([])
 
   const handleRemix = async () => {
-    setIsLoading(true)
-    setError(null)
+    if (!inputText.trim()) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      console.log('Starting remix with:', inputText)
-      const tweetArray = await tweetsFromPost(inputText)
-      console.log('Got tweets:', tweetArray)
-      setTweets(tweetArray)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred'
-      console.error('Error remixing text:', errorMessage)
-      setError(errorMessage)
-      setTweets([])
+      console.log('Starting remix with:', inputText);
+      const generatedTweets = await tweetsFromPost(inputText);
+      setTweets(generatedTweets.map((content, index) => ({
+        id: `generated-${index}`,
+        content,
+        created_at: new Date().toISOString()
+      })));
+    } catch (error) {
+      console.error('Error remixing text:', error);
+      setError(error instanceof Error ? error.message : 'Failed to generate tweets');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
-  const handleTweet = (tweet: string) => {
-    const encodedTweet = encodeURIComponent(tweet);
-    window.open(`https://twitter.com/intent/tweet?text=${encodedTweet}`, '_blank');
-  }
-
-  const handleCopy = (tweet: string, index: number) => {
-    navigator.clipboard.writeText(tweet);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  }
-
-  const getCharacterCount = (tweet: string): number => {
-    return 280 - tweet.length;
-  }
+  const handleSaveTweet = async (tweet: Tweet) => {
+    try {
+      const response = await fetch('/api/tweets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tweet),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save tweet');
+      }
+      
+      setSavedTweets((prev) => [...prev, tweet]);
+      setIsPopoutVisible(true);
+    } catch (error) {
+      console.error('Error saving tweet:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save tweet');
+    }
+  };
 
   const handleClear = () => {
     setInputText('');
     setTweets([]);
-    setError(null);
-  }
+  };
+
+  const handleDeleteTweet = async (id: string) => {
+    try {
+      const response = await fetch(`/api/tweets/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete tweet');
+      
+      setSavedTweets(savedTweets.filter(tweet => tweet.id !== id));
+    } catch (error) {
+      console.error('Error deleting tweet:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-center text-gray-800">Tweet Generator</h1>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8 text-center">Tweet Generator</h1>
         
-        <textarea
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="Paste your content here..."
-          className="w-full h-48 p-4 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-        />
-
-        {tweets.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2">
+        <div className="mb-8">
+          <textarea
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            className="w-full p-6 border rounded-lg shadow-sm text-lg"
+            placeholder="Type/paste your text here. I'll generate your tweets."
+            rows={8}
+          />
+          <div className="flex space-x-4">
             <button
               onClick={handleRemix}
-              disabled={isLoading || !inputText}
-              className="w-full py-3 px-4 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={isLoading}
+              className={`mt-4 px-8 py-4 text-xl bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 ${
+                tweets.length > 0 ? 'w-1/2' : 'w-full'
+              }`}
             >
-              {isLoading ? 'Generating Tweets...' : 'Generate Tweets'}
+              {isLoading ? 'Generating...' : 'Generate Tweets'}
             </button>
-            <button
-              onClick={handleClear}
-              className="w-full py-3 px-4 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-            >
-              Clear All
-            </button>
+            {tweets.length > 0 && (
+              <button
+                onClick={handleClear}
+                className="mt-4 px-6 py-2 w-1/2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+              >
+                Clear Input
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={handleRemix}
-            disabled={isLoading || !inputText}
-            className="w-full py-3 px-4 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Generating Tweets...' : 'Generate Tweets'}
-          </button>
-        )}
-
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-            {error}
-          </div>
-        )}
+          {error && <p className="mt-2 text-red-500">{error}</p>}
+        </div>
 
         {tweets.length > 0 && (
-          <div className="space-y-4">
-            {tweets.map((tweet, index) => (
-              <div key={index} className="bg-white rounded-lg border border-gray-300 p-4 space-y-3">
-                <p className="text-gray-600 text-sm font-medium">Tweet {index + 1}</p>
-                <p className="text-gray-800">{tweet}</p>
-                <p className="text-gray-400 text-sm italic">
-                  {getCharacterCount(tweet)} characters remaining
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleTweet(tweet)}
-                    className="py-2 px-4 bg-blue-400 text-white font-medium rounded-lg hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-colors"
-                  >
-                    Tweet This
-                  </button>
-                  <button
-                    onClick={() => handleCopy(tweet, index)}
-                    className={`py-2 px-4 ${copiedIndex === index ? 'bg-green-600' : 'bg-green-500'} text-white font-medium rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors`}
-                  >
-                    {copiedIndex === index ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <SavedTweets 
+            tweets={tweets} 
+            onSaveTweet={handleSaveTweet} 
+          />
         )}
+        
+        <div className={`pop-out-container ${isPopoutVisible ? 'visible' : ''}`}>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Saved Tweets</h2>
+            <button 
+              onClick={() => setIsPopoutVisible(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          <SavedTweets 
+            tweets={savedTweets} 
+            onSaveTweet={() => {}}
+            onDeleteTweet={handleDeleteTweet}
+            isSavedList={true}
+          />
+        </div>
       </div>
     </div>
   )
 }
 
-export default App 
+export default App

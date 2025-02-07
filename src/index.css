@@ -1,3 +1,25 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities; 
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+.pop-out-container {
+    position: fixed;
+    right: 0;
+    top: 50px; /* Adjust as needed */
+    width: 300px; /* Adjust as needed */
+    height: 90%; /* Adjust as needed */
+    overflow-y: scroll;
+    background-color: white;
+    border-left: 1px solid #ccc;
+    padding: 10px;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    /* Add transition for smooth appearance */
+    transition: transform 0.3s ease-in-out;
+    /* Hide by default */
+    transform: translateX(100%);
+}
+
+.pop-out-container.visible {
+    /* Show when visible class is added */
+    transform: translateX(0);
+} 
