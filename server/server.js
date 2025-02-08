@@ -101,12 +101,6 @@ app.post('/api/tweets', async (req, res) => {
 app.post('/api/generate', async (req, res) => {
   try {
     const { content } = req.body;
-    console.log('Received content:', content);
-    
-    if (!process.env.CLAUDE_API_KEY) {
-      console.error('CLAUDE_API_KEY is missing!');
-      throw new Error('API key not configured');
-    }
     
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -120,7 +114,7 @@ app.post('/api/generate', async (req, res) => {
         max_tokens: 150,
         messages: [{
           role: 'user',
-          content: `Generate exactly 3 tweets based on this content. Return only the tweets, no introductory text or numbering: ${content}`
+          content: `Create exactly 3 complete, self-contained tweets that comment on this content. Each tweet must be a full thought and under 280 characters: ${content}`
         }]
       })
     });
@@ -134,11 +128,18 @@ app.post('/api/generate', async (req, res) => {
     const data = await response.json();
     console.log('Claude response:', data);
     
-    // Clean up the response to remove any introductory text
+    // Clean up the response to remove numbers, quotes, and introductory text
     const tweets = data.content[0].text
       .split('\n')
       .filter(tweet => tweet.trim())
       .filter(tweet => !tweet.includes('Here are'))
+      .filter(tweet => !tweet.toLowerCase().includes('tweet'))  // Remove lines with "Tweet X:"
+      .map(tweet => tweet
+        .replace(/^\d+\.\s*/, '')  // Remove leading numbers
+        .replace(/^["']|["']$/g, '')  // Remove quotes
+        .replace(/^Tweet \d+:\s*/i, '')  // Remove "Tweet X:" format
+        .trim()
+      )
       .slice(0, 3);
     
     res.json(tweets);

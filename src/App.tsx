@@ -73,9 +73,10 @@ const App = () => {
       
       if (!response.ok) throw new Error('Failed to delete tweet');
       
-      setSavedTweets(savedTweets.filter(tweet => tweet.id !== id));
+      setSavedTweets(prev => prev.filter(tweet => tweet.id !== id));
     } catch (error) {
       console.error('Error deleting tweet:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete tweet');
     }
   };
 
@@ -121,23 +122,38 @@ const App = () => {
           />
         )}
         
-        <div className={`pop-out-container ${isPopoutVisible ? 'visible' : ''}`}>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Saved Tweets</h2>
-            <button 
-              onClick={() => setIsPopoutVisible(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              Close
-            </button>
+        {/* Collapsible saved tweets panel */}
+        <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
+          isPopoutVisible ? 'translate-x-0' : 'translate-x-full'
+        } z-50`}>
+          <div className="p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Saved Tweets</h2>
+              <button 
+                onClick={() => setIsPopoutVisible(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                Collapse
+              </button>
+            </div>
+            <SavedTweets 
+              tweets={savedTweets} 
+              onSaveTweet={() => {}}
+              onDeleteTweet={handleDeleteTweet}
+              isSavedList={true}
+            />
           </div>
-          <SavedTweets 
-            tweets={savedTweets} 
-            onSaveTweet={() => {}}
-            onDeleteTweet={handleDeleteTweet}
-            isSavedList={true}
-          />
         </div>
+
+        {/* Show panel button only when hidden AND we have saved tweets */}
+        {!isPopoutVisible && savedTweets.length > 0 && (
+          <button
+            onClick={() => setIsPopoutVisible(true)}
+            className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600"
+          >
+            Show Saved Tweets
+          </button>
+        )}
       </div>
     </div>
   )
