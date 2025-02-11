@@ -97,56 +97,109 @@ app.post('/api/tweets', async (req, res) => {
   }
 });
 
-// Add this new endpoint for tweet generation with Claude
-app.post('/api/generate', async (req, res) => {
+const parseTweetsFromResponse = (data) => {
+  console.log('Raw Claude response:', JSON.stringify(data, null, 2));
+  
+  if (!data || !data.content || !Array.isArray(data.content)) {
+    console.log('Invalid response format:', data);
+    return [];
+  }
+  
+  const text = data.content[0].text;
+  console.log('Raw text before parsing:', text);
+  
+  const tweets = text
+    .split('\n')
+    .filter(tweet => tweet.trim().length > 0)
+    .map(tweet => {
+      const cleaned = tweet
+        .trim()
+        .replace(/^["']|["']$/g, '')  // Remove quotes
+        .replace(/[""]/g, '')         // Remove smart quotes
+        .replace(/^\d+[\.\)]\s*/, '') // Remove numbers
+      console.log('Cleaned tweet:', cleaned, 'Length:', cleaned.length);
+      return cleaned;
+    })
+    .filter(tweet => tweet.length <= 280);
+  
+  console.log('Final parsed tweets:', tweets);
+  
+  return tweets.length === 3 ? tweets : [];
+};
+
+const generateTweets = async (text, isAuthenticated) => {
   try {
-    const { content } = req.body;
-    
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
+    const maxTokens = isAuthenticated ? 800 : 300;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    while (retryCount < MAX_RETRIES) {
+      const requestBody = {
         model: 'claude-3-haiku-20240307',
-        max_tokens: 150,
+        max_tokens: maxTokens,  // Fresh token count for each attempt
+        system: isAuthenticated ? 
+          'Generate exactly 3 unique tweets. Each tweet under 280 characters. Use complete sentences. Add relevant #hashtags only if they add value. Each tweet on new line.' :
+          'Generate exactly 3 unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.',
         messages: [{
           role: 'user',
-          content: `Create exactly 3 complete, self-contained tweets that comment on this content. Each tweet must be a full thought and under 280 characters: ${content}`
+          content: retryCount === 0 ? text : 
+            `${text}\n\nPrevious attempt failed. Please generate exactly 3 tweets, each under 280 characters. Be more concise.`
         }]
-      })
-    });
+      };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Claude API Response:', response.status, errorText);
-      throw new Error('Failed to call Claude API');
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const data = await response.json();
+      
+      if (data.type === 'error' && data.error?.type === 'overloaded_error') {
+        throw new Error('Service is temporarily busy. Please try again in a few moments.');
+      }
+
+      const tweets = parseTweetsFromResponse(data);
+      
+      if (tweets.length === 3 && tweets.every(tweet => tweet.length <= 280)) {
+        console.log('Successfully generated 3 valid tweets');
+        return tweets;
+      }
+
+      console.log(`Retry attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+      console.log('Current tweets:', tweets.map(t => ({ length: t.length, content: t })));
+      retryCount++;
     }
-
-    const data = await response.json();
-    console.log('Claude response:', data);
     
-    // Clean up the response to remove numbers, quotes, and introductory text
-    const tweets = data.content[0].text
-      .split('\n')
-      .filter(tweet => tweet.trim())
-      .filter(tweet => !tweet.includes('Here are'))
-      .filter(tweet => !tweet.toLowerCase().includes('tweet'))  // Remove lines with "Tweet X:"
-      .map(tweet => tweet
-        .replace(/^\d+\.\s*/, '')  // Remove leading numbers
-        .replace(/^["']|["']$/g, '')  // Remove quotes
-        .replace(/^Tweet \d+:\s*/i, '')  // Remove "Tweet X:" format
-        .trim()
-      )
-      .slice(0, 3);
-    
-    res.json(tweets);
-    
+    throw new Error('Failed to generate valid tweets after multiple attempts. Please try again.');
   } catch (error) {
     console.error('Error generating tweets:', error);
-    res.status(500).json({ error: 'Failed to generate tweets' });
+    throw error;
+  }
+};
+
+// Update the route handler to handle the error
+app.post('/api/generate', async (req, res) => {
+  const { text, isAuthenticated } = req.body;
+  
+  try {
+    const tweets = await generateTweets(text, isAuthenticated);
+    console.log('Sending tweets to client:', tweets); // Add debug log
+    
+    if (!tweets || tweets.length !== 3) {
+      throw new Error('Failed to generate exactly 3 tweets');
+    }
+    
+    res.json(tweets);
+  } catch (error) {
+    console.error('Error in /api/generate:', error);
+    res.status(503).json({ 
+      error: error.message || 'Failed to generate tweets. Please try again.' 
+    });
   }
 });
 
@@ -156,7 +209,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log('Supabase URL:', process.env.SUPABASE_URL);

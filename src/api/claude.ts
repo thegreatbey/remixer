@@ -1,26 +1,26 @@
-export const tweetsFromPost = async (content: string): Promise<string[]> => {
+export const tweetsFromPost = async (text: string, isAuthenticated: boolean) => {
+  const maxTokens = isAuthenticated ? 400 : 150; // Different token limits based on auth status
+
   try {
-    const response = await fetch('http://localhost:3000/api/generate', {
+    const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ 
+        text, 
+        isAuthenticated,
+        maxTokens // Pass the token limit to the API
+      }),
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('API Error:', errorData);
       throw new Error('Failed to generate tweets');
     }
-    
-    const tweets = await response.json();
-    if (!Array.isArray(tweets) || tweets.length !== 3) {
-      throw new Error('Invalid response format from API');
-    }
-    return tweets;
+
+    return await response.json();
   } catch (error) {
-    console.error('Error generating tweets:', error);
+    console.error('Error:', error);
     throw error;
   }
 };

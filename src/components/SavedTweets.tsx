@@ -1,24 +1,27 @@
 import React from 'react';
 
-interface Tweet {
+export interface Tweet {
   id: string;
   content: string;
-  created_at: string;
+  created_at: string | null;
+  user_id?: string | null;
 }
 
 interface SavedTweetsProps {
   tweets: Tweet[];
-  onSaveTweet: (tweet: Tweet) => void;
-  onDeleteTweet?: (id: string) => void;
+  onSaveTweet?: (tweet: Tweet) => void;
+  onDeleteTweet?: (tweet: Tweet) => void;
   isSavedList?: boolean;
 }
 
 const SavedTweets: React.FC<SavedTweetsProps> = ({ 
   tweets, 
-  onSaveTweet, 
+  onSaveTweet,
   onDeleteTweet,
   isSavedList = false 
 }) => {
+  console.log('SavedTweets props:', { tweets, onDeleteTweet, isSavedList }); // Debug log
+
   const handleTweetThis = (content: string) => {
     const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`;
     window.open(tweetUrl, '_blank');
@@ -26,38 +29,44 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
 
   return (
     <div className="space-y-4">
-      {tweets.map((tweet) => (
-        <div key={tweet.id} className="p-4 bg-white rounded-lg shadow">
-          <p>{tweet.content}</p>
-          <div className="mt-2 flex space-x-2">
-            <button 
-              onClick={() => handleTweetThis(tweet.content)}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Tweet This
-            </button>
-            {!isSavedList && (
+      {tweets.map((tweet) => {
+        console.log('Rendering tweet:', tweet, 'isSavedList:', isSavedList); // Debug log
+        return (
+          <div key={tweet.id} className="p-4 bg-white rounded-lg shadow">
+            <p>{tweet.content}</p>
+            <div className="mt-2 flex space-x-2">
               <button 
-                onClick={() => onSaveTweet(tweet)}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={() => handleTweetThis(tweet.content)}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
-                Save Tweet
+                Tweet This
               </button>
-            )}
-            {isSavedList && onDeleteTweet && (
-              <button 
-                onClick={() => onDeleteTweet(tweet.id)}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Delete Tweet
-              </button>
-            )}
+              {onSaveTweet && !isSavedList && (
+                <button 
+                  onClick={() => onSaveTweet(tweet)}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  Save Tweet
+                </button>
+              )}
+              {onDeleteTweet && isSavedList && (
+                <button 
+                  onClick={() => {
+                    console.log('Delete button clicked for tweet:', tweet); // Debug log
+                    onDeleteTweet(tweet);
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete Tweet
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-sm text-gray-500 italic">
+              {280 - tweet.content.length} characters remaining
+            </p>
           </div>
-          <p className="mt-2 text-sm text-gray-500 italic">
-            {280 - tweet.content.length} characters remaining
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
