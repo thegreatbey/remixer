@@ -118,25 +118,19 @@ const App = () => {
 
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
-      if (!isValidTweetLength(tweet.content)) {
-        setError('Tweet exceeds 280 character limit');
-        return;
-      }
-
-      console.log('Tweet to save:', tweet);
-      
+      // Save to database for both guest and authenticated users
       const { data, error } = await supabase
         .from('tweets')
         .insert([{ 
           content: tweet.content,
-          user_id: user ? user.id : null
+          user_id: user ? user.id : null,
+          user_input: inputText,  // Add the original input
+          generated_tweets: tweets,  // Add all generated tweets
+          tweet_length: tweet.content.length  // Add tweet length
         }])
         .select();
       
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       if (data && data[0]) {
         setSavedTweets(prev => [...prev, data[0]]);
