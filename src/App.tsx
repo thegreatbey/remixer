@@ -7,6 +7,13 @@ import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { Tweet } from './components/SavedTweets'
 
+// Add interface for tweet metrics
+interface TweetMetrics {
+  content: string;
+  length: number;
+  token_cost: number;
+}
+
 const App = () => {
   const [user, setUser] = useState<User | null>(null)
   const [inputText, setInputText] = useState<string>('')
@@ -89,9 +96,9 @@ const App = () => {
     setError(null);
     
     try {
-      const generatedTweets = await tweetsFromPost(inputText, !!user);
+      const generatedTweets = await tweetsFromPost(inputText, showAuthFeatures);
       const validTweets = generatedTweets
-        .filter(content => isValidTweetLength(content))
+        .filter((content: string) => isValidTweetLength(content))
         .map((content: string, index: number) => ({
           id: `generated-${index}`,
           content,
@@ -99,10 +106,8 @@ const App = () => {
           user_id: null
         }));
       
-      // Enforce exactly 3 tweets
-      if (validTweets.length !== 3) {
-        setError('Failed to generate exactly 3 valid tweets. Please try again.');
-        setTweets([]);  // Clear any partial results
+      if (validTweets.length === 0) {
+        setError('No valid tweets generated (all exceeded 280 characters). Please try again.');
         return;
       }
       
@@ -110,7 +115,6 @@ const App = () => {
     } catch (error) {
       console.error('Error remixing text:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate tweets');
-      setTweets([]);  // Clear any partial results
     } finally {
       setIsLoading(false);
     }
@@ -118,14 +122,30 @@ const App = () => {
 
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
+      // Calculate metrics for all generated tweets
+      const generatedTweetsMetrics = tweets.map(tweet => ({
+        content: tweet.content,  // Just the content string, not the whole Tweet object
+        length: tweet.content.length,
+        token_cost: Math.ceil(tweet.content.length / 4)
+      }));
+
+      console.log('Saving tweet with metrics:', {
+        content: tweet.content,
+        saved_length: tweet.content.length,
+        saved_token_cost: Math.ceil(tweet.content.length / 4),
+        metrics: generatedTweetsMetrics
+      });
+
       const { data, error } = await supabase
         .from('tweets')
         .insert([{ 
-          content: tweet.content,        // The saved tweet for Saved Tweets List
+          content: tweet.content,
           user_id: user ? user.id : null,
-          user_input: inputText,         // Original input
-          generated_tweets: tweets,      // All generated tweets
-          tweet_length: tweet.content.length
+          user_input: inputText,
+          generated_tweets: tweets,
+          generated_tweets_metrics: generatedTweetsMetrics,  // Now correctly structured
+          saved_tweet_length: tweet.content.length,
+          saved_tweet_token_cost: Math.ceil(tweet.content.length / 4)
         }])
         .select();
       
@@ -210,7 +230,7 @@ const App = () => {
               {user ? 'Sign Out' : 'Sign In'}
             </button>
             {!user && (
-              <div className="absolute right-0 mt-1 w-48 py-2 bg-white rounded-lg shadow-xl opacity-0 invisible peer-hover:opacity-100 peer-hover:visible transition-opacity duration-200">
+              <div className="absolute right-0 mt-1 w-56 py-2 bg-white rounded-lg shadow-xl opacity-0 invisible peer-hover:opacity-100 peer-hover:visible transition-opacity duration-200">
                 <div className="px-4 py-1 text-sm font-medium text-gray-700">Account Benefits:</div>
                 <div className="px-4 py-1 text-sm text-gray-600">{'>'}permanently save tweets</div>
                 <div className="px-4 py-1 text-sm text-gray-600">{'>'}#hashtags</div>
@@ -266,6 +286,13 @@ const App = () => {
         )}
 
         {/* Main content */}
+        {/*
+        {!showAuthFeatures && (
+            <p className="text-sm text-gray-600 mt-2">
+              {'>'}Sign in to generate tweets with hashtags
+            </p>
+          )}
+          */}
         <div className="space-y-4 max-w-4xl mx-auto">
           <textarea
             className="w-full h-48 p-4 border rounded resize-none text-lg"
@@ -279,6 +306,7 @@ const App = () => {
               {error}
             </div>
           )}
+          
           
           {tweets.length === 0 ? (
             <button
