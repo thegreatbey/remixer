@@ -98,32 +98,31 @@ app.post('/api/tweets', async (req, res) => {
 });
 
 const parseTweetsFromResponse = (data) => {
-  console.log('Raw Claude response:', JSON.stringify(data, null, 2));
-  
   if (!data || !data.content || !Array.isArray(data.content)) {
     console.log('Invalid response format:', data);
     return [];
   }
   
   const text = data.content[0].text;
-  console.log('Raw text before parsing:', text);
   
+  // Split by newlines and clean each tweet
   const tweets = text
     .split('\n')
     .filter(tweet => tweet.trim().length > 0)
-    .map(tweet => {
-      const cleaned = tweet
+    .filter(tweet => !tweet.toLowerCase().includes('here are 3'))  // Remove header text
+    .filter(tweet => !tweet.toLowerCase().includes('understood'))  // Remove acknowledgment text
+    .map(tweet => 
+      tweet
         .trim()
         .replace(/^["']|["']$/g, '')  // Remove quotes
         .replace(/[""]/g, '')         // Remove smart quotes
         .replace(/^\d+[\.\)]\s*/, '') // Remove numbers
-      console.log('Cleaned tweet:', cleaned, 'Length:', cleaned.length);
-      return cleaned;
-    })
+    )
     .filter(tweet => tweet.length <= 280);
   
   console.log('Final parsed tweets:', tweets);
   
+  // Only return if we have exactly 3 tweets
   return tweets.length === 3 ? tweets : [];
 };
 

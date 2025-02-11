@@ -118,21 +118,13 @@ const App = () => {
 
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
-      console.log('Saving tweet with additional data:', {
-        content: tweet.content,
-        user_id: user?.id,
-        user_input: inputText,
-        generated_tweets: tweets,
-        tweet_length: tweet.content.length
-      });
-
       const { data, error } = await supabase
         .from('tweets')
         .insert([{ 
-          content: tweet.content,
+          content: tweet.content,        // The saved tweet for Saved Tweets List
           user_id: user ? user.id : null,
-          user_input: inputText,
-          generated_tweets: tweets,
+          user_input: inputText,         // Original input
+          generated_tweets: tweets,      // All generated tweets
           tweet_length: tweet.content.length
         }])
         .select();
