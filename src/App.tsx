@@ -118,15 +118,22 @@ const App = () => {
 
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
-      // Save to database for both guest and authenticated users
+      console.log('Saving tweet with additional data:', {
+        content: tweet.content,
+        user_id: user?.id,
+        user_input: inputText,
+        generated_tweets: tweets,
+        tweet_length: tweet.content.length
+      });
+
       const { data, error } = await supabase
         .from('tweets')
         .insert([{ 
           content: tweet.content,
           user_id: user ? user.id : null,
-          user_input: inputText,  // Add the original input
-          generated_tweets: tweets,  // Add all generated tweets
-          tweet_length: tweet.content.length  // Add tweet length
+          user_input: inputText,
+          generated_tweets: tweets,
+          tweet_length: tweet.content.length
         }])
         .select();
       
