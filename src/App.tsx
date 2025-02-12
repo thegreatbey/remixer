@@ -123,8 +123,8 @@ const App = () => {
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
       // Calculate metrics for all generated tweets
-      const generatedTweetsMetrics = tweets.map(tweet => ({
-        content: tweet.content,  // Just the content string, not the whole Tweet object
+      const generatedTweetsMetrics: TweetMetrics[] = tweets.map(tweet => ({
+        content: tweet.content, 
         length: tweet.content.length,
         token_cost: Math.ceil(tweet.content.length / 4)
       }));
@@ -142,8 +142,10 @@ const App = () => {
           content: tweet.content,
           user_id: user ? user.id : null,
           user_input: inputText,
+          input_length: inputText.length,  // Length of user's input
+          input_token_cost: Math.ceil(inputText.length / 4),  // Token cost of input
           generated_tweets: tweets,
-          generated_tweets_metrics: generatedTweetsMetrics,  // Now correctly structured
+          generated_tweets_metrics: generatedTweetsMetrics,
           saved_tweet_length: tweet.content.length,
           saved_tweet_token_cost: Math.ceil(tweet.content.length / 4)
         }])
@@ -162,8 +164,7 @@ const App = () => {
   };
 
   const handleClear = () => {
-    setInputText('');
-    setTweets([]);
+    resetState();  // Use the resetState function instead of individual setters
   };
 
   const handleDeleteTweet = async (tweet: any) => {  // Change parameter type temporarily to debug
