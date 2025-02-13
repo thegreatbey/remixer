@@ -116,18 +116,20 @@ const App = () => {
         .from('sessions')
         .select('total_tweets_generated, total_tweets_saved, total_input_tokens, total_output_tokens')
         .eq('id', currentSessionId)
-        .single();
+        .single() as { data: Session | null, error: any };
 
       if (fetchError) throw fetchError;
 
+      const updates: Partial<Session> = {
+        total_tweets_generated: (sessionData?.total_tweets_generated || 0) + tweets.length,
+        total_tweets_saved: (sessionData?.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
+        total_input_tokens: (sessionData?.total_input_tokens || 0) + inputTokens,
+        total_output_tokens: (sessionData?.total_output_tokens || 0) + outputTokens
+      };
+
       const { error: updateError } = await supabase
         .from('sessions')
-        .update({
-          total_tweets_generated: (sessionData?.total_tweets_generated || 0) + tweets.length,
-          total_tweets_saved: (sessionData?.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
-          total_input_tokens: (sessionData?.total_input_tokens || 0) + inputTokens,
-          total_output_tokens: (sessionData?.total_output_tokens || 0) + outputTokens
-        })
+        .update(updates)
         .eq('id', currentSessionId);
 
       if (updateError) throw updateError;
@@ -277,12 +279,12 @@ const App = () => {
             total_tweets_saved: 0,
             total_input_tokens: 0,
             total_output_tokens: 0
-          })
+          } as Partial<Session>)
           .select()
           .single();
 
         if (error) throw error;
-        setCurrentSessionId(sessionData.id);
+        setCurrentSessionId(sessionData?.id);
       } catch (error) {
         console.error('Error creating session:', error);
       }
