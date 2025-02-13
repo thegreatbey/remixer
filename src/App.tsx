@@ -151,9 +151,14 @@ const App = () => {
     }
   };
 
-  // Modify handleSaveTweet to track saved tweet metrics
+  const extractHashtags = (text: string): string[] => {
+    const hashtagRegex = /#[\w\u0590-\u05ff]+/g;  // Matches hashtags including Hebrew chars
+    return text.match(hashtagRegex) || [];
+  };
+    // Modify handleSaveTweet to track saved tweet metrics
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
+      const hashtags = extractHashtags(tweet.content);
       // Calculate metrics for all generated tweets
       const generatedTweetsMetrics: TweetMetrics[] = tweets.map(tweet => ({
         content: tweet.content, 
@@ -172,7 +177,8 @@ const App = () => {
           generated_tweets: tweets,
           generated_tweets_metrics: generatedTweetsMetrics,
           saved_tweet_length: tweet.content.length,
-          saved_tweet_token_cost: Math.ceil(tweet.content.length / 4)
+          saved_tweet_token_cost: Math.ceil(tweet.content.length / 4),
+          hashtags: hashtags //store array of hashtags
         }])
         .select();
       
