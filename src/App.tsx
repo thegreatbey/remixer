@@ -14,6 +14,22 @@ interface TweetMetrics {
   token_cost: number;
 }
 
+// Add interface for Session
+type integer = number;  // Add this before the Session interface
+
+interface Session {
+  id: string;
+  user_id: string | null;
+  is_guest: boolean;
+  login_time: Date;      // Changed from string to Date
+  logout_time?: Date;    // Changed from string to Date
+  session_duration?: string;
+  total_tweets_generated: integer;
+  total_tweets_saved: integer;
+  total_input_tokens: integer;
+  total_output_tokens: integer;
+}
+
 const App = () => {
   const [user, setUser] = useState<User | null>(null)
   const [inputText, setInputText] = useState<string>('')
@@ -96,17 +112,25 @@ const App = () => {
     if (!currentSessionId) return;
 
     try {
-      const { error } = await supabase
+      const { data: sessionData, error: fetchError } = await supabase
+        .from('sessions')
+        .select('total_tweets_generated, total_tweets_saved, total_input_tokens, total_output_tokens')
+        .eq('id', currentSessionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const { error: updateError } = await supabase
         .from('sessions')
         .update({
-          total_tweets_generated: tweets.length,
-          total_tweets_saved: savedTweet ? 1 : 0,
-          total_input_tokens: inputTokens,
-          total_output_tokens: outputTokens
+          total_tweets_generated: (sessionData?.total_tweets_generated || 0) + tweets.length,
+          total_tweets_saved: (sessionData?.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
+          total_input_tokens: (sessionData?.total_input_tokens || 0) + inputTokens,
+          total_output_tokens: (sessionData?.total_output_tokens || 0) + outputTokens
         })
         .eq('id', currentSessionId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
     } catch (error) {
       console.error('Error updating session metrics:', error);
     }
@@ -243,18 +267,22 @@ const App = () => {
   useEffect(() => {
     const initSession = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: sessionData, error } = await supabase
           .from('sessions')
           .insert({
             user_id: user?.id || null,
             is_guest: !user,
             login_time: new Date().toISOString(),
+            total_tweets_generated: 0,
+            total_tweets_saved: 0,
+            total_input_tokens: 0,
+            total_output_tokens: 0
           })
           .select()
           .single();
 
         if (error) throw error;
-        setCurrentSessionId(data.id);
+        setCurrentSessionId(sessionData.id);
       } catch (error) {
         console.error('Error creating session:', error);
       }
@@ -267,13 +295,28 @@ const App = () => {
       if (currentSessionId) {
         const endSession = async () => {
           const now = new Date();
-          await supabase
+          const { data: sessionData, error: fetchError } = await supabase
+            .from('sessions')
+            .select('login_time')
+            .eq('id', currentSessionId)
+            .single();
+
+          if (fetchError) {
+            console.error('Error fetching session:', fetchError);
+            return;
+          }
+
+          const { error: updateError } = await supabase
             .from('sessions')
             .update({
               logout_time: now.toISOString(),
-              session_duration: `${Math.floor((now.getTime()) / 1000)} seconds`
+              session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
             })
             .eq('id', currentSessionId);
+
+          if (updateError) {
+            console.error('Error updating session:', updateError);
+          }
         };
         endSession();
       }
