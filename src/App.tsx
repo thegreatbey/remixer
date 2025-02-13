@@ -25,8 +25,10 @@ const App = () => {
   const [showAuth, setShowAuth] = useState(false)
   const [isFirstSave, setIsFirstSave] = useState(true)
   const [loadingDots, setLoadingDots] = useState('');
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('useEffect triggered');
     // Check active sessions and subscribe to auth changes
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -201,6 +203,52 @@ const App = () => {
     setError(null);
     setInputText(''); // Clear input
     setShowAuth(false); // Hide auth form
+  };
+
+  // Initialize session when app loads
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('sessions')
+          .insert({
+            user_id: user?.id || null,
+            is_guest: !user,
+            login_time: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setCurrentSessionId(data.id);
+      } catch (error) {
+        console.error('Error creating session:', error);
+      }
+    };
+
+    initSession();
+
+    // Cleanup on unmount or user change
+    return () => {
+      if (currentSessionId) {
+        const endSession = async () => {
+          const now = new Date();
+          await supabase
+            .from('sessions')
+            .update({
+              logout_time: now.toISOString(),
+              session_duration: `${Math.floor((now.getTime()) / 1000)} seconds`
+            })
+            .eq('id', currentSessionId);
+        };
+        endSession();
+      }
+    };
+  }, [user]); // Re-run when user auth state changes
+
+  // Update session metrics when generating/saving tweets
+  const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
+    if (!currentSessionId) return;
   };
 
   return (
