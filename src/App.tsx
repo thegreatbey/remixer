@@ -114,6 +114,13 @@ const App = () => {
       }
       
       setTweets(validTweets);
+
+      // Calculate and update metrics
+      const inputTokens = Math.ceil(inputText.length / 4);
+      const outputTokens = validTweets.reduce((total, tweet) => 
+        total + Math.ceil(tweet.content.length / 4), 0);
+      await updateSessionMetrics(inputTokens, outputTokens);
+
     } catch (error) {
       console.error('Error remixing text:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate tweets');
@@ -131,21 +138,14 @@ const App = () => {
         token_cost: Math.ceil(tweet.content.length / 4)
       }));
 
-      console.log('Saving tweet with metrics:', {
-        content: tweet.content,
-        saved_length: tweet.content.length,
-        saved_token_cost: Math.ceil(tweet.content.length / 4),
-        metrics: generatedTweetsMetrics
-      });
-
       const { data, error } = await supabase
         .from('tweets')
         .insert([{ 
           content: tweet.content,
           user_id: user ? user.id : null,
           user_input: inputText,
-          input_length: inputText.length,  // Length of user's input
-          input_token_cost: Math.ceil(inputText.length / 4),  // Token cost of input
+          input_length: inputText.length,
+          input_token_cost: Math.ceil(inputText.length / 4),
           generated_tweets: tweets,
           generated_tweets_metrics: generatedTweetsMetrics,
           saved_tweet_length: tweet.content.length,
@@ -158,6 +158,11 @@ const App = () => {
       if (data && data[0]) {
         setSavedTweets(prev => [...prev, data[0]]);
         setIsPopoutVisible(true);
+
+        // Update session metrics when saving tweet
+        const inputTokens = Math.ceil(inputText.length / 4);
+        const outputTokens = Math.ceil(tweet.content.length / 4);
+        await updateSessionMetrics(inputTokens, outputTokens, true);
       }
     } catch (error) {
       console.error('Error saving tweet:', error);
@@ -249,6 +254,32 @@ const App = () => {
   // Update session metrics when generating/saving tweets
   const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
     if (!currentSessionId) return;
+
+    try {
+      // First get current session data
+      const { data: session } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', currentSessionId)
+        .single();
+
+      if (!session) return;
+
+      // Update the session with new metrics
+      const { error } = await supabase
+        .from('sessions')
+        .update({
+          total_tweets_generated: (session.total_tweets_generated || 0) + tweets.length,
+          total_tweets_saved: (session.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
+          total_input_tokens: (session.total_input_tokens || 0) + inputTokens,
+          total_output_tokens: (session.total_output_tokens || 0) + outputTokens
+        })
+        .eq('id', currentSessionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating session metrics:', error);
+    }
   };
 
   return (
