@@ -91,6 +91,28 @@ const App = () => {
   // Helper function to validate tweet length
   const isValidTweetLength = (content: string) => content.length <= 280;
 
+  // Add function to update session metrics
+  const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
+    if (!currentSessionId) return;
+
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({
+          total_tweets_generated: tweets.length,
+          total_tweets_saved: savedTweet ? 1 : 0,
+          total_input_tokens: inputTokens,
+          total_output_tokens: outputTokens
+        })
+        .eq('id', currentSessionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating session metrics:', error);
+    }
+  };
+
+  // Modify handleRemix to track metrics
   const handleRemix = async () => {
     if (!inputText.trim()) return;
     
@@ -129,6 +151,7 @@ const App = () => {
     }
   };
 
+  // Modify handleSaveTweet to track saved tweet metrics
   const handleSaveTweet = async (tweet: Tweet) => {
     try {
       // Calculate metrics for all generated tweets
@@ -158,8 +181,8 @@ const App = () => {
       if (data && data[0]) {
         setSavedTweets(prev => [...prev, data[0]]);
         setIsPopoutVisible(true);
-
-        // Update session metrics when saving tweet
+        
+        // Update metrics for saved tweet
         const inputTokens = Math.ceil(inputText.length / 4);
         const outputTokens = Math.ceil(tweet.content.length / 4);
         await updateSessionMetrics(inputTokens, outputTokens, true);
@@ -251,37 +274,6 @@ const App = () => {
     };
   }, [user]); // Re-run when user auth state changes
 
-  // Update session metrics when generating/saving tweets
-  const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
-    if (!currentSessionId) return;
-
-    try {
-      // First get current session data
-      const { data: session } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', currentSessionId)
-        .single();
-
-      if (!session) return;
-
-      // Update the session with new metrics
-      const { error } = await supabase
-        .from('sessions')
-        .update({
-          total_tweets_generated: (session.total_tweets_generated || 0) + tweets.length,
-          total_tweets_saved: (session.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
-          total_input_tokens: (session.total_input_tokens || 0) + inputTokens,
-          total_output_tokens: (session.total_output_tokens || 0) + outputTokens
-        })
-        .eq('id', currentSessionId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating session metrics:', error);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 p-8 pt-16">
       <div className="max-w-4xl mx-auto">
@@ -366,13 +358,6 @@ const App = () => {
         )}
 
         {/* Main content */}
-        {/*
-        {!showAuthFeatures && (
-            <p className="text-sm text-gray-600 mt-2">
-              {'>'}Sign in to generate tweets with hashtags
-            </p>
-          )}
-          */}
         <div className="space-y-4 max-w-4xl mx-auto">
           <textarea
             className="w-full h-48 p-4 border rounded resize-none text-lg"
@@ -386,7 +371,6 @@ const App = () => {
               {error}
             </div>
           )}
-          
           
           {tweets.length === 0 ? (
             <button
