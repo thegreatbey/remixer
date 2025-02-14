@@ -21,8 +21,8 @@ interface Session {
   id: string;
   user_id: string | null;
   is_guest: boolean;
-  login_time: Date;      // Changed from string to Date
-  logout_time?: Date;    // Changed from string to Date
+  login_time: string;      // Correct for timestamptz
+  logout_time?: string;    // Correct for timestamptz
   session_duration?: string;
   total_tweets_generated: integer;
   total_tweets_saved: integer;
@@ -116,15 +116,16 @@ const App = () => {
         .from('sessions')
         .select('total_tweets_generated, total_tweets_saved, total_input_tokens, total_output_tokens')
         .eq('id', currentSessionId)
-        .single() as { data: Session | null, error: any };
+        .single();
 
       if (fetchError) throw fetchError;
+      if (!sessionData) return;
 
-      const updates: Partial<Session> = {
-        total_tweets_generated: (sessionData?.total_tweets_generated || 0) + tweets.length,
-        total_tweets_saved: (sessionData?.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
-        total_input_tokens: (sessionData?.total_input_tokens || 0) + inputTokens,
-        total_output_tokens: (sessionData?.total_output_tokens || 0) + outputTokens
+      const updates = {
+        total_tweets_generated: (sessionData.total_tweets_generated || 0) + tweets.length,
+        total_tweets_saved: (sessionData.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
+        total_input_tokens: (sessionData.total_input_tokens || 0) + inputTokens,
+        total_output_tokens: (sessionData.total_output_tokens || 0) + outputTokens
       };
 
       const { error: updateError } = await supabase
