@@ -257,13 +257,21 @@ const App = () => {
 
   // Add state reset function
   const resetState = () => {
-    setTweets([]);
-    setSavedTweets([]);
-    setIsPopoutVisible(false);
-    setIsFirstSave(true);
+    setTweets([]); // Clear generated tweets
     setError(null);
     setInputText(''); // Clear input
     setShowAuth(false); // Hide auth form
+    
+    // Only update visibility based on whether there are saved tweets
+    if (user) {
+      // For authenticated users - keep savedTweets intact
+      setIsPopoutVisible(false);
+      setIsFirstSave(savedTweets.length === 0);
+    } else {
+      // For guest users - keep session saved tweets intact
+      setIsPopoutVisible(false);
+      setIsFirstSave(savedTweets.length === 0);
+    }
   };
 
   // Initialize session when app loads
