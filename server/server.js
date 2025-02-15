@@ -137,7 +137,7 @@ const generateTweets = async (text, showAuthFeatures) => {
         model: 'claude-3-haiku-20240307',
         max_tokens: maxTokens,  // Fresh token count for each attempt
         system: showAuthFeatures ? 
-          'Generate exactly 3 unique tweets. Each tweet must include: 1) Informative content (max 200 chars) followed by 2) Two to three relevant hashtags - just like before. Example: "AI adoption is accelerating across industries, with new tools making implementation more accessible #AITechnology #DigitalTransformation". Each tweet on new line.' :
+          'Generate exactly 3 unique tweets. Each tweet must include: 1) Informative content (max 200 chars) followed by 2) one to three relevant hashtags - just like before. Example: "AI adoption is accelerating across industries, with new tools making implementation more accessible #AITechnology #DigitalTransformation". Each tweet on new line.' :
           'Generate exactly 3 unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.',
         messages: [{
           role: 'user',

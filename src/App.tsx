@@ -42,6 +42,7 @@ const App = () => {
   const [isFirstSave, setIsFirstSave] = useState(true)
   const [loadingDots, setLoadingDots] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState<string>('');
 
   useEffect(() => {
     console.log('useEffect triggered');
@@ -197,6 +198,7 @@ const App = () => {
         .from('tweets')
         .insert([{ 
           content: tweet.content,
+          source_url: sourceUrl,
           user_id: user ? user.id : null,
           user_input: inputText,
           input_length: inputText.length,
@@ -260,6 +262,7 @@ const App = () => {
     setTweets([]); // Clear generated tweets
     setError(null);
     setInputText(''); // Clear input
+    setSourceUrl(''); // Clear source URL field
     setShowAuth(false); // Hide auth form
     
     // Only update visibility based on whether there are saved tweets
@@ -418,12 +421,21 @@ const App = () => {
         )}
 
         {/* Main content */}
-        <div className="space-y-4 max-w-4xl mx-auto">
+        <div className="space-y-2 max-w-4xl mx-auto">
           <textarea
             className="w-full h-48 p-4 border rounded resize-none text-lg"
             placeholder="Type/paste your text here. I'll generate your tweets."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+          />
+          
+          {/* Source URL input - optional */}
+          <input
+            type="text"
+            className="w-full p-2 border rounded text-lg"
+            placeholder="Optional: Add source URL"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
           />
           
           {error && (
@@ -480,6 +492,7 @@ const App = () => {
               tweets={tweets} 
               onSaveTweet={handleSaveTweet}
               isSavedList={false}
+              sourceUrl={sourceUrl}
             />
           </div>
         )}
