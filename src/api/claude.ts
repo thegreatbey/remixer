@@ -1,5 +1,5 @@
-export const tweetsFromPost = async (text: string, isAuthenticated: boolean) => {
-  const maxTokens = isAuthenticated ? 800 : 300; // Different token limits based on auth status
+export const tweetsFromPost = async (text: string, showAuthFeatures: boolean): Promise<string[]> => {
+  const maxTokens = showAuthFeatures ? 800 : 300; // Different token limits based on auth status
 
   try {
     const response = await fetch('/api/generate', {
@@ -9,7 +9,7 @@ export const tweetsFromPost = async (text: string, isAuthenticated: boolean) => 
       },
       body: JSON.stringify({ 
         text, 
-        isAuthenticated,
+        showAuthFeatures,
         maxTokens // Pass the token limit to the API
       }),
     });
