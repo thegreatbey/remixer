@@ -126,9 +126,9 @@ const parseTweetsFromResponse = (data) => {
   return tweets.length === 3 ? tweets : [];
 };
 
-const generateTweets = async (text, isAuthenticated) => {
+const generateTweets = async (text, showAuthFeatures) => {
   try {
-    const maxTokens = isAuthenticated ? 800 : 300;
+    const maxTokens = showAuthFeatures ? 800 : 300;
     let retryCount = 0;
     const MAX_RETRIES = 3;
 
@@ -136,8 +136,8 @@ const generateTweets = async (text, isAuthenticated) => {
       const requestBody = {
         model: 'claude-3-haiku-20240307',
         max_tokens: maxTokens,  // Fresh token count for each attempt
-        system: isAuthenticated ? 
-          'Generate exactly 3 unique tweets. Each tweet under 280 characters. Use complete sentences. Add relevant #hashtags only if they add value. Each tweet on new line.' :
+        system: showAuthFeatures ? 
+          'Generate exactly 3 unique tweets. Each tweet must include: 1) Informative content (max 200 chars) followed by 2) Two to three relevant hashtags - just like before. Example: "AI adoption is accelerating across industries, with new tools making implementation more accessible #AITechnology #DigitalTransformation". Each tweet on new line.' :
           'Generate exactly 3 unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.',
         messages: [{
           role: 'user',
@@ -182,11 +182,12 @@ const generateTweets = async (text, isAuthenticated) => {
 };
 
 // Update the route handler to handle the error
+//leave this alone api/generate is fine
 app.post('/api/generate', async (req, res) => {
-  const { text, isAuthenticated } = req.body;
+  const { text, showAuthFeatures } = req.body;
   
   try {
-    const tweets = await generateTweets(text, isAuthenticated);
+    const tweets = await generateTweets(text, showAuthFeatures);
     console.log('Sending tweets to client:', tweets); // Add debug log
     
     if (!tweets || tweets.length !== 3) {
@@ -195,7 +196,7 @@ app.post('/api/generate', async (req, res) => {
     
     res.json(tweets);
   } catch (error) {
-    console.error('Error in /api/generate:', error);
+    console.error('Error in /api/generate:', error); //api
     res.status(503).json({ 
       error: error.message || 'Failed to generate tweets. Please try again.' 
     });

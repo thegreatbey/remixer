@@ -1,7 +1,15 @@
 export const tweetsFromPost = async (text: string, showAuthFeatures: boolean): Promise<string[]> => {
   const maxTokens = showAuthFeatures ? 800 : 300; // Different token limits based on auth status
 
+  // Add debugging logs
+  console.log('Auth params:', { 
+    showAuthFeatures,
+    maxTokens,
+    timestamp: new Date().toISOString()
+  });
+
   try {
+    // Fetch the tweets from the server using the new API endpoint with the correct parameters. Leave api/generate as is.
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
