@@ -14,15 +14,14 @@ interface TweetMetrics {
   token_cost: number;
 }
 
-// Add interface for Session
-type integer = number;  // Add this before the Session interface
+type integer = number;
 
 interface Session {
   id: string;
   user_id: string | null;
   is_guest: boolean;
-  login_time: string;      // Correct for timestamptz
-  logout_time?: string;    // Correct for timestamptz
+  login_time: string;
+  logout_time?: string;
   session_duration?: string;
   total_tweets_generated: integer;
   total_tweets_saved: integer;
@@ -105,42 +104,30 @@ const App = () => {
   // Only show auth-required features when logged in
   const showAuthFeatures = !!user;
 
-  // Helper function to validate tweet length
-  const isValidTweetLength = (content: string) => content.length <= 280;
-
   // Add function to update session metrics
   const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
     if (!currentSessionId) return;
 
     try {
-      const { data: sessionData, error: fetchError } = await supabase
-        .from('sessions')
-        .select('total_tweets_generated, total_tweets_saved, total_input_tokens, total_output_tokens')
-        .eq('id', currentSessionId)
-        .single();
+      // Call the new database function directly
+      const { error } = await supabase.rpc('increment_session_metrics', {
+        p_session_id: currentSessionId,
+        p_tweets_generated: tweets.length,
+        p_tweets_saved: savedTweet ? 1 : 0,
+        p_input_tokens: inputTokens,
+        p_output_tokens: outputTokens
+      });
 
-      if (fetchError) throw fetchError;
-      if (!sessionData) return;
-
-      const updates = {
-        total_tweets_generated: (sessionData.total_tweets_generated || 0) + tweets.length,
-        total_tweets_saved: (sessionData.total_tweets_saved || 0) + (savedTweet ? 1 : 0),
-        total_input_tokens: (sessionData.total_input_tokens || 0) + inputTokens,
-        total_output_tokens: (sessionData.total_output_tokens || 0) + outputTokens
-      };
-
-      const { error: updateError } = await supabase
-        .from('sessions')
-        .update(updates)
-        .eq('id', currentSessionId);
-
-      if (updateError) throw updateError;
+      if (error) {
+        console.error('Error in increment_session_metrics:', error);
+        throw error; // Re-throw to be caught by the outer catch
+      }
     } catch (error) {
       console.error('Error updating session metrics:', error);
     }
   };
 
-  // Modify handleRemix to track metrics
+  // Modify handleRemix to filter out invalid tweets
   const handleRemix = async () => {
     if (!inputText.trim()) return;
     
@@ -150,7 +137,7 @@ const App = () => {
     try {
       const generatedTweets = await tweetsFromPost(inputText, showAuthFeatures);
       const validTweets = generatedTweets
-        .filter((content: string) => isValidTweetLength(content))
+        .filter((content: string) => content.length <= 280)  // Filter out tweets > 280 chars
         .map((content: string, index: number) => ({
           id: `generated-${index}`,
           content,
@@ -185,6 +172,11 @@ const App = () => {
   };
     // Modify handleSaveTweet to track saved tweet metrics
   const handleSaveTweet = async (tweet: Tweet) => {
+    if (tweet.content.length > 280) {
+      setError('Tweet exceeds 280 characters and cannot be saved.');
+      return;
+    }
+    
     try {
       const hashtags = extractHashtags(tweet.content);
       // Calculate metrics for all generated tweets
@@ -291,12 +283,12 @@ const App = () => {
             total_tweets_saved: 0,
             total_input_tokens: 0,
             total_output_tokens: 0
-          } as Partial<Session>)
-          .select()
+          })
+          .select<'*', Session>()
           .single();
 
         if (error) throw error;
-        setCurrentSessionId(sessionData?.id);
+        setCurrentSessionId(sessionData?.id); // Using current column name 'id'
       } catch (error) {
         console.error('Error creating session:', error);
       }
@@ -304,38 +296,40 @@ const App = () => {
 
     initSession();
 
-    // Cleanup on unmount or user change
+    // Only cleanup on actual logout or component unmount
     return () => {
-      if (currentSessionId) {
+      if (currentSessionId && !document.hidden) { // Check if tab is not hidden
         const endSession = async () => {
           const now = new Date();
           const { data: sessionData, error: fetchError } = await supabase
             .from('sessions')
             .select('login_time')
-            .eq('id', currentSessionId)
+            .eq('id', currentSessionId) // Using current column name 'id'
             .single();
 
-          if (fetchError) {
-            console.error('Error fetching session:', fetchError);
-            return;
-          }
+          if (!fetchError && sessionData) {
+            const { error: updateError } = await supabase
+              .from('sessions')
+              .update({
+                logout_time: now.toISOString(),
+                session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
+              })
+              .eq('id', currentSessionId); // Using current column name 'id'
 
-          const { error: updateError } = await supabase
-            .from('sessions')
-            .update({
-              logout_time: now.toISOString(),
-              session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
-            })
-            .eq('id', currentSessionId);
-
-          if (updateError) {
-            console.error('Error updating session:', updateError);
+            if (updateError) {
+              console.error('Error updating session:', updateError);
+            }
           }
         };
         endSession();
       }
     };
-  }, [user]); // Re-run when user auth state changes
+  }, [user]);
+
+  // Add this helper function
+  const getRemainingCharacters = (content: string): number => {
+    return 280 - content.length;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 pt-16">
@@ -347,6 +341,31 @@ const App = () => {
             <button 
               onClick={async () => {
                 if (user) {
+                  // First end the current session
+                  if (currentSessionId) {
+                    const now = new Date();
+                    // Get the login time for duration calculation
+                    const { data: sessionData, error: fetchError } = await supabase
+                      .from('sessions')
+                      .select('login_time')
+                      .eq('id', currentSessionId)
+                      .single();
+
+                    if (!fetchError && sessionData) {
+                      const { error: updateError } = await supabase
+                        .from('sessions')
+                        .update({
+                          logout_time: now.toISOString(),
+                          session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
+                        })
+                        .eq('id', currentSessionId);
+
+                      if (updateError) {
+                        console.error('Error updating session:', updateError);
+                      }
+                    }
+                  }
+                  // Then sign out
                   await supabase.auth.signOut();
                   // Reset all states to initial values
                   setTweets([]);
@@ -356,6 +375,7 @@ const App = () => {
                   setError(null);
                   setIsPopoutVisible(false);
                   setIsFirstSave(true);
+                  setCurrentSessionId(null); // Don't forget to reset the session ID
                 } else {
                   setShowAuth(true);
                 }
@@ -492,6 +512,7 @@ const App = () => {
               tweets={tweets} 
               onSaveTweet={handleSaveTweet}
               isSavedList={false}
+              getRemainingCharacters={getRemainingCharacters}
               sourceUrl={sourceUrl}
             />
           </div>
@@ -531,6 +552,8 @@ const App = () => {
                 tweets={savedTweets} 
                 onDeleteTweet={handleDeleteTweet}
                 isSavedList={true}
+                getRemainingCharacters={getRemainingCharacters}
+                sourceUrl={sourceUrl}
               />
             </div>
           </div>
