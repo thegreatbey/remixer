@@ -1,3 +1,4 @@
 node_modules
 .env
 dist
+backups/tweets_backup.json

@@ -14,21 +14,6 @@ interface TweetMetrics {
   token_cost: number;
 }
 
-type integer = number;
-
-interface Session {
-  id: string;
-  user_id: string | null;
-  is_guest: boolean;
-  login_time: string;
-  logout_time?: string;
-  session_duration?: string;
-  total_tweets_generated: integer;
-  total_tweets_saved: integer;
-  total_input_tokens: integer;
-  total_output_tokens: integer;
-}
-
 const App = () => {
   const [user, setUser] = useState<User | null>(null)
   const [inputText, setInputText] = useState<string>('')
@@ -38,10 +23,8 @@ const App = () => {
   const [isPopoutVisible, setIsPopoutVisible] = useState(false)
   const [savedTweets, setSavedTweets] = useState<Tweet[]>([])
   const [showAuth, setShowAuth] = useState(false)
-  const [isFirstSave, setIsFirstSave] = useState(true)
-  const [loadingDots, setLoadingDots] = useState('');
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string>('');
+  const [loadingDots, setLoadingDots] = useState('');
 
   useEffect(() => {
     console.log('useEffect triggered');
@@ -53,42 +36,16 @@ const App = () => {
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', { event, session });
       setUser(session?.user ?? null);
       if (session?.user) {
-        setShowAuth(false); // Close auth popup when auth state changes
+        setShowAuth(false);
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
-
-  // When user logs in, fetch their saved tweets
-  useEffect(() => {
-    const fetchSavedTweets = async () => {
-      if (user) {
-        const { data, error } = await supabase
-          .from('tweets')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error fetching tweets:', error);
-          return;
-        }
-
-        if (data) {
-          // Type assertion to ensure compatibility
-          setSavedTweets(data as Tweet[]);
-          setIsPopoutVisible(false);
-          setIsFirstSave(false);
-        }
-      }
-    };
-
-    fetchSavedTweets();
-  }, [user]);
 
   useEffect(() => {
     if (isLoading) {
@@ -101,31 +58,37 @@ const App = () => {
     }
   }, [isLoading]);
 
-  // Only show auth-required features when logged in
-  const showAuthFeatures = !!user;
-
-  // Add function to update session metrics
-  const updateSessionMetrics = async (inputTokens: number, outputTokens: number, savedTweet: boolean = false) => {
-    if (!currentSessionId) return;
-
-    try {
-      // Call the new database function directly
-      const { error } = await supabase.rpc('increment_session_metrics', {
-        p_session_id: currentSessionId,
-        p_tweets_generated: tweets.length,
-        p_tweets_saved: savedTweet ? 1 : 0,
-        p_input_tokens: inputTokens,
-        p_output_tokens: outputTokens
-      });
-
-      if (error) {
-        console.error('Error in increment_session_metrics:', error);
-        throw error; // Re-throw to be caught by the outer catch
+  // Add this useEffect to load saved tweets on auth change
+  useEffect(() => {
+    const loadSavedTweets = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('tweets')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (data && !error) {
+          setSavedTweets(data);
+        }
       }
-    } catch (error) {
-      console.error('Error updating session metrics:', error);
+    };
+
+    loadSavedTweets();
+  }, [user]);  // This will run when user auth state changes
+
+  // Add this useEffect for guest mode session cleanup
+  useEffect(() => {
+    if (!user) {  // Only for guest mode
+      const handleUnload = () => {
+        setSavedTweets([]);
+        localStorage.removeItem('guestSavedTweets');  // If using local storage
+      };
+      
+      window.addEventListener('unload', handleUnload);
+      return () => window.removeEventListener('unload', handleUnload);
     }
-  };
+  }, [user]);
 
   // Modify handleRemix to filter out invalid tweets
   const handleRemix = async () => {
@@ -135,7 +98,7 @@ const App = () => {
     setError(null);
     
     try {
-      const generatedTweets = await tweetsFromPost(inputText, showAuthFeatures);
+      const generatedTweets = await tweetsFromPost(inputText, !!user);
       const validTweets = generatedTweets
         .filter((content: string) => content.length <= 280)  // Filter out tweets > 280 chars
         .map((content: string, index: number) => ({
@@ -151,12 +114,6 @@ const App = () => {
       }
       
       setTweets(validTweets);
-
-      // Calculate and update metrics
-      const inputTokens = Math.ceil(inputText.length / 4);
-      const outputTokens = validTweets.reduce((total, tweet) => 
-        total + Math.ceil(tweet.content.length / 4), 0);
-      await updateSessionMetrics(inputTokens, outputTokens);
 
     } catch (error) {
       console.error('Error remixing text:', error);
@@ -208,11 +165,6 @@ const App = () => {
       if (data && data[0]) {
         setSavedTweets(prev => [...prev, data[0]]);
         setIsPopoutVisible(true);
-        
-        // Update metrics for saved tweet
-        const inputTokens = Math.ceil(inputText.length / 4);
-        const outputTokens = Math.ceil(tweet.content.length / 4);
-        await updateSessionMetrics(inputTokens, outputTokens, true);
       }
     } catch (error) {
       console.error('Error saving tweet:', error);
@@ -261,70 +213,11 @@ const App = () => {
     if (user) {
       // For authenticated users - keep savedTweets intact
       setIsPopoutVisible(false);
-      setIsFirstSave(savedTweets.length === 0);
     } else {
       // For guest users - keep session saved tweets intact
       setIsPopoutVisible(false);
-      setIsFirstSave(savedTweets.length === 0);
     }
   };
-
-  // Initialize session when app loads
-  useEffect(() => {
-    const initSession = async () => {
-      try {
-        const { data: sessionData, error } = await supabase
-          .from('sessions')
-          .insert({
-            user_id: user?.id || null,
-            is_guest: !user,
-            login_time: new Date().toISOString(),
-            total_tweets_generated: 0,
-            total_tweets_saved: 0,
-            total_input_tokens: 0,
-            total_output_tokens: 0
-          })
-          .select<'*', Session>()
-          .single();
-
-        if (error) throw error;
-        setCurrentSessionId(sessionData?.id); // Using current column name 'id'
-      } catch (error) {
-        console.error('Error creating session:', error);
-      }
-    };
-
-    initSession();
-
-    // Only cleanup on actual logout or component unmount
-    return () => {
-      if (currentSessionId && !document.hidden) { // Check if tab is not hidden
-        const endSession = async () => {
-          const now = new Date();
-          const { data: sessionData, error: fetchError } = await supabase
-            .from('sessions')
-            .select('login_time')
-            .eq('id', currentSessionId) // Using current column name 'id'
-            .single();
-
-          if (!fetchError && sessionData) {
-            const { error: updateError } = await supabase
-              .from('sessions')
-              .update({
-                logout_time: now.toISOString(),
-                session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
-              })
-              .eq('id', currentSessionId); // Using current column name 'id'
-
-            if (updateError) {
-              console.error('Error updating session:', updateError);
-            }
-          }
-        };
-        endSession();
-      }
-    };
-  }, [user]);
 
   // Add this helper function
   const getRemainingCharacters = (content: string): number => {
@@ -341,41 +234,15 @@ const App = () => {
             <button 
               onClick={async () => {
                 if (user) {
-                  // First end the current session
-                  if (currentSessionId) {
-                    const now = new Date();
-                    // Get the login time for duration calculation
-                    const { data: sessionData, error: fetchError } = await supabase
-                      .from('sessions')
-                      .select('login_time')
-                      .eq('id', currentSessionId)
-                      .single();
-
-                    if (!fetchError && sessionData) {
-                      const { error: updateError } = await supabase
-                        .from('sessions')
-                        .update({
-                          logout_time: now.toISOString(),
-                          session_duration: `${Math.floor((now.getTime() - new Date(sessionData.login_time).getTime()) / 1000)} seconds`
-                        })
-                        .eq('id', currentSessionId);
-
-                      if (updateError) {
-                        console.error('Error updating session:', updateError);
-                      }
-                    }
-                  }
-                  // Then sign out
                   await supabase.auth.signOut();
-                  // Reset all states to initial values
+                  // Only clear current session data, NOT saved tweets
                   setTweets([]);
-                  setSavedTweets([]);
                   setInputText('');
+                  setSourceUrl('');
                   setIsLoading(false);
                   setError(null);
                   setIsPopoutVisible(false);
-                  setIsFirstSave(true);
-                  setCurrentSessionId(null); // Don't forget to reset the session ID
+                  // Don't clear savedTweets - they should persist!
                 } else {
                   setShowAuth(true);
                 }
@@ -475,7 +342,7 @@ const App = () => {
                   Generating{loadingDots}
                 </span>
               ) : (
-                'Generate tweets'
+                'Generate Tweets'
               )}
             </button>
           ) : (
@@ -490,7 +357,7 @@ const App = () => {
                     Generating{loadingDots}
                   </span>
                 ) : (
-                  'Generate tweets'
+                  'Generate Tweets'
                 )}
               </button>
 
@@ -517,9 +384,10 @@ const App = () => {
             />
           </div>
         )}
-        
-        {/* Show saved tweets button - appears for both guest and auth users after first collapse */}
-        {savedTweets.length > 0 && !isPopoutVisible && !isFirstSave && (
+
+        {/* Show saved tweets button - separate logic for GUEST and AUTH modes */}
+        {/* For AUTH mode: show if user has any saved tweets */}
+        {user && savedTweets.filter(tweet => tweet.user_id === user.id).length > 0 && (
           <button
             onClick={() => setIsPopoutVisible(true)}
             className="fixed top-4 right-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -528,7 +396,17 @@ const App = () => {
           </button>
         )}
 
-        {/* Saved tweets sidebar - visible for both guest and auth users */}
+        {/* For GUEST mode: only show for tweets saved in THIS session */}
+        {!user && savedTweets.filter(tweet => !tweet.user_id).length > 0 && (
+          <button
+            onClick={() => setIsPopoutVisible(true)}
+            className="fixed top-4 right-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Show Saved Tweets
+          </button>
+        )}
+
+        {/* Saved tweets sidebar */}
         {savedTweets.length > 0 && (
           <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
             isPopoutVisible ? 'translate-x-0' : 'translate-x-full'
@@ -539,7 +417,6 @@ const App = () => {
                 <button 
                   onClick={() => {
                     setIsPopoutVisible(false);
-                    setIsFirstSave(false);  // This enables the Show Saved Tweets button
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -549,7 +426,7 @@ const App = () => {
             </div>
             <div className="p-4 overflow-y-auto h-[calc(100%-73px)]">
               <SavedTweets 
-                tweets={savedTweets} 
+                tweets={user ? savedTweets.filter(tweet => tweet.user_id === user.id) : savedTweets.filter(tweet => !tweet.user_id)}
                 onDeleteTweet={handleDeleteTweet}
                 isSavedList={true}
                 getRemainingCharacters={getRemainingCharacters}
