@@ -14,6 +14,11 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateActivityTimes(new Date(), null, null)) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -47,6 +52,22 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
     setError(null);
     setEmail('');
     setPassword('');
+  };
+
+  const validateActivityTimes = (signInTime: Date, signOutTime: Date | null, duration: number | null): boolean => {
+    // Check sign in/out times
+    if (signOutTime && signInTime && signOutTime <= signInTime) {
+      console.error('Sign out must be after sign in');
+      return false;
+    }
+
+    // Check duration
+    if (duration !== null && duration < 0) {
+      console.error('Session duration cannot be negative');
+      return false;
+    }
+
+    return true;
   };
 
   return (

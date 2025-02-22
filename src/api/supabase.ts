@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import { Database } from '../types/supabase'
+import type { Database as GeneratedDatabase } from '../types/supabase'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
 
 console.log('Supabase URL:', supabaseUrl)
 
-export const supabase = createClient<Database>(
+export const supabase = createClient<GeneratedDatabase>(
   supabaseUrl,
   supabaseKey,
   {
@@ -20,3 +20,27 @@ export const supabase = createClient<Database>(
     }
   }
 )
+
+export type Database = {
+  public: {
+    Tables: {
+      activity: {
+        Row: {
+          id: string;
+          created_at: string;
+          access_timestamp: string;
+          user_id: string | null;
+          // ... other columns ...
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          access_timestamp: string;
+          user_id?: string | null;
+          // ... other columns ...
+        };
+      };
+      // ... other tables ...
+    };
+  };
+};

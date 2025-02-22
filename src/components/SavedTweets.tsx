@@ -1,12 +1,5 @@
 import React from 'react';
-
-export interface Tweet {
-  id: string;
-  content: string;
-  created_at: string | null;
-  user_id?: string | null;
-  source_url?: string; // Optional source attribution
-}
+import { Tweet } from '../types/types';
 
 interface SavedTweetsProps {
   tweets: Tweet[];

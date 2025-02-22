@@ -5,7 +5,8 @@ import { supabase } from './api/supabase'
 import { User } from '@supabase/supabase-js'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { Tweet } from './components/SavedTweets'
+import { Tweet } from './types/types'
+//import type { Json } from './types/supabase'
 
 // Add interface for tweet metrics
 interface TweetMetrics {
@@ -100,13 +101,22 @@ const App = () => {
     try {
       const generatedTweets = await tweetsFromPost(inputText, !!user);
       const validTweets = generatedTweets
-        .filter((content: string) => content.length <= 280)  // Filter out tweets > 280 chars
+        .filter((content: string) => content.length <= 280)
         .map((content: string, index: number) => ({
           id: `generated-${index}`,
           content,
           created_at: new Date().toISOString(),
-          user_id: null
-        }));
+          user_id: null,
+          source_url: null,
+          generated_tweets: null,
+          generated_tweets_metrics: null,
+          hashtags: null,
+          input_length: null,
+          input_token_cost: null,
+          saved_tweet_length: null,
+          saved_tweet_token_cost: null,
+          user_input: null
+        } as Tweet));
       
       if (validTweets.length === 0) {
         setError('No valid tweets generated (all exceeded 280 characters). Please try again.');
@@ -114,7 +124,6 @@ const App = () => {
       }
       
       setTweets(validTweets);
-
     } catch (error) {
       console.error('Error remixing text:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate tweets');
@@ -129,35 +138,37 @@ const App = () => {
   };
     // Modify handleSaveTweet to track saved tweet metrics
   const handleSaveTweet = async (tweet: Tweet) => {
-    if (tweet.content.length > 280) {
+    if (tweet?.content?.length > 280) {  // Added optional chaining here too
       setError('Tweet exceeds 280 characters and cannot be saved.');
       return;
     }
     
     try {
-      const hashtags = extractHashtags(tweet.content);
-      // Calculate metrics for all generated tweets
+      const hashtags = extractHashtags(tweet?.content || "");  // Added fallback
       const generatedTweetsMetrics: TweetMetrics[] = tweets.map(tweet => ({
-        content: tweet.content, 
-        length: tweet.content.length,
-        token_cost: Math.ceil(tweet.content.length / 4)
+        content: tweet?.content || "", 
+        length: tweet?.content?.length || 0,
+        token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
       }));
+
+      const insertData = {
+        content: tweet?.content || "",  // Null safety
+        created_at: new Date().toISOString(),
+        source_url: sourceUrl || null,
+        user_id: user?.id || null,
+        user_input: inputText,
+        input_length: inputText.length,
+        input_token_cost: Math.ceil(inputText.length / 4),
+        generated_tweets: JSON.stringify(tweets),  // Proper JSON serialization
+        generated_tweets_metrics: JSON.stringify(generatedTweetsMetrics),  // Proper JSON serialization
+        saved_tweet_length: tweet?.content?.length || 0,  // Null safety
+        saved_tweet_token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0,  // Null safety
+        hashtags: hashtags
+      };
 
       const { data, error } = await supabase
         .from('tweets')
-        .insert([{ 
-          content: tweet.content,
-          source_url: sourceUrl,
-          user_id: user ? user.id : null,
-          user_input: inputText,
-          input_length: inputText.length,
-          input_token_cost: Math.ceil(inputText.length / 4),
-          generated_tweets: tweets,
-          generated_tweets_metrics: generatedTweetsMetrics,
-          saved_tweet_length: tweet.content.length,
-          saved_tweet_token_cost: Math.ceil(tweet.content.length / 4),
-          hashtags: hashtags //store array of hashtags
-        }])
+        .insert(insertData)
         .select();
       
       if (error) throw error;
@@ -176,24 +187,19 @@ const App = () => {
     resetState();  // Use the resetState function instead of individual setters
   };
 
-  const handleDeleteTweet = async (tweet: any) => {  // Change parameter type temporarily to debug
+  const handleDeleteTweet = async (tweet: Tweet) => {
     try {
-      console.log('Deleting tweet:', tweet); // Debug log
+      console.log('Deleting tweet:', tweet);
       
-      // Make sure we have the correct ID
-      const tweetId = tweet.id || tweet;
-      
-      console.log('Using ID:', tweetId); // Debug log
-
       const { error } = await supabase
         .from('tweets')
         .delete()
-        .eq('id', tweetId);
+        .eq('id', tweet.id);  // Use tweet.id directly
 
       if (error) throw error;
 
       // Update local state
-      setSavedTweets(prev => prev.filter(t => t.id !== tweetId));
+      setSavedTweets(prev => prev.filter(t => t.id !== tweet.id));
 
     } catch (error) {
       console.error('Error deleting tweet:', error);
@@ -223,6 +229,40 @@ const App = () => {
   const getRemainingCharacters = (content: string): number => {
     return 280 - content.length;
   };
+
+  const trackActivity = async () => {
+    try {
+      const { error } = await supabase
+        .from('activity')
+        .insert({
+          //timestamp data
+          access_timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          //user info
+          user_id: user?.id || null,
+          source_url: sourceUrl || null,
+          //input data
+          input_text: inputText || null,
+          //generated tweets data as json strings
+          generated_tweets: tweets.length > 0 ? JSON.stringify(tweets) : null, //all generated tweets
+          saved_tweets: savedTweets.length > 0 ? JSON.stringify(savedTweets) : null, //all saved tweets
+          //anlytics data
+          hashtags: tweets.flatMap(t => extractHashtags(t.content || "")), //all hashtags from all generated tweets
+          total_tweets_generated: tweets.length, //total number of tweets generated
+          total_tokens_spent: tweets.reduce((acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)), 0), //total tokens spent on all generated tweets
+          tweet_lengths: tweets.map(t => t.content?.length || 0) //length of all generated tweets as an array
+        });
+
+      if (error) throw error;
+      
+    } catch (error) {
+      console.error('Error tracking activity:', error);
+    }
+  };
+
+  useEffect(() => {
+    trackActivity();
+  }, []); // Run once when app loads
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 pt-16">
