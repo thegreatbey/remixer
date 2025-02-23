@@ -17,11 +17,36 @@ const Login = ({ switchView }: LoginProps) => {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const signInTime = new Date().toISOString();
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
+
+      // Create activity record with sign-in time
+      const { error: activityError } = await supabase.from('activity').insert({
+        access_timestamp: signInTime,
+        created_at: signInTime,
+        sign_in_time: signInTime,  // Set the sign-in time
+        sign_out_time: null,       // Will be set on sign-out
+        session_duration: null,     // Will be calculated on sign-out
+        user_id: signInData.user?.id,
+        source_url: window.location.href,
+        input_text: null,
+        generated_tweets: null,
+        saved_tweets: null,
+        tweeted_tweets: null,
+        hashtags_generated: null,
+        hashtags_saved: null,
+        total_tweets_generated: null,
+        total_tokens_spent: null,
+        tweet_lengths: null
+      });
+
+      if (activityError) {
+        console.error('Error creating activity record:', activityError);
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to login')
     } finally {

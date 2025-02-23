@@ -124,7 +124,8 @@ const App = () => {
       }
       
       setTweets(validTweets);
-      await trackActivity('generate');  // Track generation event
+      console.log('Debug: Calling trackActivity...');
+      await trackActivity('generate');
     } catch (error) {
       console.error('Error remixing text:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate tweets');
@@ -157,7 +158,7 @@ const App = () => {
         content: tweet?.content || "",  // Null safety
         created_at: new Date().toISOString(),
         source_url: sourceUrl || null,
-        user_id: user?.id || null,
+        user_id: user?.id || null,  // This handles guest mode (null user_id)
         user_input: inputText,
         input_length: inputText.length,
         input_token_cost: Math.ceil(inputText.length / 4),
@@ -237,31 +238,49 @@ const App = () => {
   const trackActivity = async (event: 'generate' | 'save' = 'generate') => {
     try {
       if (event === 'generate') {
-        // Ensure tweets array is never null/undefined
         const tweetsToTrack = tweets || [];
+        const currentTime = new Date().toISOString();
         
-        await supabase.from('activity').insert({
-          access_timestamp: new Date().toISOString(),
-          created_at: new Date().toISOString(),
+        // Debug logging
+        console.log('Activity Tracking Debug:', {
+          tweetsToTrack,
+          hashtags: tweetsToTrack.flatMap(t => extractHashtags(t.content || "")),
+          totalTweets: tweetsToTrack.length,
+          tokenCount: tweetsToTrack.reduce(
+            (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
+            0
+          )
+        });
+
+        const { data, error } = await supabase.from('activity').insert({
+          access_timestamp: currentTime,
+          created_at: currentTime,
+          sign_in_time: currentTime,
+          sign_out_time: null,
+          session_duration: null,
           user_id: user?.id ?? undefined,
           source_url: sourceUrl ? sourceUrl.trim() : null,
-          input_text: inputText ? inputText.trim() : null,
+          input_text: inputText?.trim() || null,
           generated_tweets: JSON.stringify(tweetsToTrack.map(t => ({
             content: t.content || '',
-            // include other tweet properties you want to track
-          }) as TweetMetrics)),
+            length: t.content?.length || 0
+          }))),
           saved_tweets: null,
-          hashtags: tweetsToTrack.flatMap(t => extractHashtags(t.content ? t.content : "")),
+          tweeted_tweets: null,
+          hashtags_generated: tweetsToTrack.flatMap(t => extractHashtags(t.content || "")),
+          hashtags_saved: null,
           total_tweets_generated: tweetsToTrack.length,
           total_tokens_spent: tweetsToTrack.reduce(
             (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
             0
           ),
-          tweet_lengths: tweetsToTrack.map(t => t.content?.length || 0),
-          sign_in_time: (await supabase.auth.getSession()).data.session?.created_at || null,
-          sign_out_time: null, // Will be updated on sign out
-          session_duration: null // Will be calculated on sign out
+          tweet_lengths: tweetsToTrack.map(t => t.content?.length || 0)
         });
+
+        // Log any errors
+        if (error) {
+          console.error('Activity Insert Error:', error);
+        }
       } else if (event === 'save') {
         // Find and update existing record
         const { data: lastActivity } = await supabase
@@ -277,7 +296,7 @@ const App = () => {
             .update({
               saved_tweets: JSON.stringify(savedTweets),
               access_timestamp: new Date().toISOString(),
-              hashtags: savedTweets.flatMap(t => extractHashtags(t.content ? t.content : ""))
+              hashtags_saved: savedTweets.flatMap(t => extractHashtags(t.content ? t.content : ""))
             })
             .eq('id', lastActivity[0].id);
         }
@@ -296,35 +315,57 @@ const App = () => {
           {user ? (
             <a
               onClick={async () => {
-                const signOutTime = new Date().toISOString();
-                // Update last activity record with sign out time
-                const { data: lastActivity } = await supabase
-                  .from('activity')
-                  .select('*')
-                  .eq('user_id', user?.id ?? undefined)
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-
-                if (lastActivity?.[0]) {
-                  const signInTime = lastActivity[0].sign_in_time ? new Date(lastActivity[0].sign_in_time) : new Date();
-                  const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+                try {
+                  const signOutTime = new Date().toISOString();
                   
-                  await supabase
+                  // Find last activity record
+                  const { data: lastActivity, error: fetchError } = await supabase
                     .from('activity')
-                    .update({
-                      sign_out_time: signOutTime,
-                      session_duration: Math.floor(duration / 1000)  // Duration in seconds
-                    })
-                    .eq('id', lastActivity[0].id);
-                }
+                    .select('*')
+                    .eq('user_id', user?.id ?? undefined)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
 
-                await supabase.auth.signOut();
-                setInputText('');
-                setSourceUrl('');
-                setTweets([]);
-                setSavedTweets([]);
-                setError(null);
-                setIsPopoutVisible(false);
+                  if (fetchError) {
+                    console.error('Error fetching last activity:', fetchError);
+                  }
+
+                  // Update session timing if we found the record
+                  if (lastActivity?.[0]) {
+                    const signInTime = lastActivity[0].sign_in_time 
+                      ? new Date(lastActivity[0].sign_in_time) 
+                      : new Date();
+                    const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+                    
+                    const { error: updateError } = await supabase
+                      .from('activity')
+                      .update({
+                        sign_out_time: signOutTime,
+                        session_duration: Math.floor(duration / 1000)  // Duration in seconds
+                      })
+                      .eq('id', lastActivity[0].id);
+
+                    if (updateError) {
+                      console.error('Error updating activity:', updateError);
+                    } else {
+                      console.log('Session ended:', {
+                        sign_out_time: signOutTime,
+                        duration: Math.floor(duration / 1000)
+                      });
+                    }
+                  }
+
+                  // Sign out and reset state
+                  await supabase.auth.signOut();
+                  setInputText('');
+                  setSourceUrl('');
+                  setTweets([]);
+                  setSavedTweets([]);
+                  setError(null);
+                  setIsPopoutVisible(false);
+                } catch (error) {
+                  console.error('Error during sign out:', error);
+                }
               }}
               className="text-blue-500 hover:text-blue-600 cursor-pointer"
             >

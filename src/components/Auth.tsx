@@ -15,7 +15,8 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateActivityTimes(new Date(), null, null)) {
+    const signInTime = new Date();
+    if (!validateActivityTimes(signInTime, null, null)) {
       return;
     }
 
@@ -33,11 +34,40 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
         setError('Check your email for the confirmation link!');
       } else {
         console.log('Attempting signin...');
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (error) throw error;
+        if (signInError) throw signInError;
+
+        // Track sign-in activity
+        const { error: activityError } = await supabase.from('activity').insert({
+          // Timestamp fields
+          access_timestamp: signInTime.toISOString(),
+          created_at: signInTime.toISOString(),
+          sign_in_time: signInTime.toISOString(),
+          sign_out_time: null,
+          session_duration: null,
+          
+          // User identification
+          user_id: signInData.user?.id,
+          source_url: window.location.href,
+          
+          // Tweet-related fields (null because no tweets yet)
+          input_text: null,
+          generated_tweets: null,
+          saved_tweets: null,
+          tweeted_tweets: null,
+          hashtags: null,
+          total_tweets_generated: null,
+          total_tokens_spent: null,
+          tweet_lengths: null
+        });
+        
+        if (activityError) {
+          console.error('Error tracking sign-in:', activityError);
+          throw activityError;
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
