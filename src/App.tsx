@@ -133,7 +133,8 @@ const App = () => {
     }
   };
 
-  const extractHashtags = (text: string): string[] => {
+  const extractHashtags = (text: string | undefined): string[] => {
+    if (!text) return [];  // Return empty array if text is undefined
     const hashtagRegex = /#[\w\u0590-\u05ff]+/g;  // Matches hashtags including Hebrew chars
     return text.match(hashtagRegex) || [];
   };
@@ -229,39 +230,57 @@ const App = () => {
 
   // Add this helper function
   const getRemainingCharacters = (content: string): number => {
-    return 280 - content.length;
+    const urlLength = sourceUrl ? 25 : 0;  // URL counts as 25 if present
+    return 280 - content.length - urlLength;
   };
 
   const trackActivity = async (event: 'generate' | 'save' = 'generate') => {
     try {
-      const baseData = {
-        access_timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        user_id: user?.id || null,
-        source_url: sourceUrl || null,
-        input_text: inputText || null,  // Remove arbitrary limit
-      };
-
       if (event === 'generate') {
+        // Ensure tweets array is never null/undefined
+        const tweetsToTrack = tweets || [];
+        
         await supabase.from('activity').insert({
-          ...baseData,
-          generated_tweets: JSON.stringify(tweets),  // Store complete data
+          access_timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          user_id: user?.id ?? undefined,
+          source_url: sourceUrl ? sourceUrl.trim() : null,
+          input_text: inputText ? inputText.trim() : null,
+          generated_tweets: JSON.stringify(tweetsToTrack.map(t => ({
+            content: t.content || '',
+            // include other tweet properties you want to track
+          }) as TweetMetrics)),
           saved_tweets: null,
-          hashtags: tweets.flatMap(t => extractHashtags(t.content || "")),
-          total_tweets_generated: tweets.length || 0,
-          total_tokens_spent: tweets.reduce((acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)), 0),
-          tweet_lengths: tweets.map(t => t.content?.length || 0)
+          hashtags: tweetsToTrack.flatMap(t => extractHashtags(t.content ? t.content : "")),
+          total_tweets_generated: tweetsToTrack.length,
+          total_tokens_spent: tweetsToTrack.reduce(
+            (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
+            0
+          ),
+          tweet_lengths: tweetsToTrack.map(t => t.content?.length || 0),
+          sign_in_time: (await supabase.auth.getSession()).data.session?.created_at || null,
+          sign_out_time: null, // Will be updated on sign out
+          session_duration: null // Will be calculated on sign out
         });
       } else if (event === 'save') {
-        await supabase.from('activity').insert({
-          ...baseData,
-          generated_tweets: JSON.stringify(tweets),  // Store complete data
-          saved_tweets: JSON.stringify(savedTweets),  // Store complete data
-          hashtags: savedTweets.flatMap(t => extractHashtags(t.content || "")),
-          total_tweets_generated: tweets.length || 0,
-          total_tokens_spent: savedTweets.reduce((acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)), 0),
-          tweet_lengths: savedTweets.map(t => t.content?.length || 0)
-        });
+        // Find and update existing record
+        const { data: lastActivity } = await supabase
+          .from('activity')
+          .select('*')
+          .eq('user_id', user?.id ?? undefined)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (lastActivity?.[0]) {
+          await supabase
+            .from('activity')
+            .update({
+              saved_tweets: JSON.stringify(savedTweets),
+              access_timestamp: new Date().toISOString(),
+              hashtags: savedTweets.flatMap(t => extractHashtags(t.content ? t.content : ""))
+            })
+            .eq('id', lastActivity[0].id);
+        }
       }
     } catch (error) {
       console.error('Error tracking activity:', error);
@@ -277,14 +296,35 @@ const App = () => {
           {user ? (
             <a
               onClick={async () => {
+                const signOutTime = new Date().toISOString();
+                // Update last activity record with sign out time
+                const { data: lastActivity } = await supabase
+                  .from('activity')
+                  .select('*')
+                  .eq('user_id', user?.id ?? undefined)
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+
+                if (lastActivity?.[0]) {
+                  const signInTime = lastActivity[0].sign_in_time ? new Date(lastActivity[0].sign_in_time) : new Date();
+                  const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+                  
+                  await supabase
+                    .from('activity')
+                    .update({
+                      sign_out_time: signOutTime,
+                      session_duration: Math.floor(duration / 1000)  // Duration in seconds
+                    })
+                    .eq('id', lastActivity[0].id);
+                }
+
                 await supabase.auth.signOut();
-                //CLEAR ALL STATE
-                setInputText('');  // Clear input
-                setSourceUrl('');  // Clear URL
-                setTweets([]);    // Clear generated tweets
-                setSavedTweets([]); // Clear saved tweets
-                setError(null);   // Clear any errors
-                setIsPopoutVisible(false); // Hide saved tweets panel
+                setInputText('');
+                setSourceUrl('');
+                setTweets([]);
+                setSavedTweets([]);
+                setError(null);
+                setIsPopoutVisible(false);
               }}
               className="text-blue-500 hover:text-blue-600 cursor-pointer"
             >

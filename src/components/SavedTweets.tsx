@@ -23,10 +23,8 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
   // Handle tweet sharing with source attribution
   const handleTweetThis = (content: string, sourceUrl?: string) => {
     let tweetText = content;
-    
-    // Add URL to tweet content if provided
     if (sourceUrl) {
-      tweetText += ` ${sourceUrl}`;
+      tweetText = `${content} ${sourceUrl}`.trim();  // Remove any extra spaces
     }
     
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`, '_blank');
@@ -55,7 +53,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
               </p>
             )}
             
-            {/* Character count - URL counts as 20 chars */}
+            {/* Character count - URL counts as 23 chars */}
             <div className={`text-sm ${isValidTweet ? 'text-gray-500' : 'text-red-500'}`}>
               {remainingChars} characters remaining
             </div>
