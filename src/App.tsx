@@ -256,28 +256,22 @@ const App = () => {
           access_timestamp: currentTime,
           created_at: currentTime,
           sign_in_time: currentTime,
-          sign_out_time: null,
-          session_duration: null,
           user_id: user?.id ?? undefined,
           source_url: sourceUrl ? sourceUrl.trim() : null,
           input_text: inputText?.trim() || null,
-          generated_tweets: JSON.stringify(tweetsToTrack.map(t => ({
-            content: t.content || '',
-            length: t.content?.length || 0
-          }))),
-          saved_tweets: null,
-          tweeted_tweets: null,
+          generated_tweets: JSON.stringify(tweetsToTrack),  // Fix: Ensure proper JSON
           hashtags_generated: tweetsToTrack.flatMap(t => extractHashtags(t.content || "")),
-          hashtags_saved: null,
-          total_tweets_generated: tweetsToTrack.length,
+          total_tweets_generated: tweetsToTrack.length || 0,  // Fix: Ensure number
           total_tokens_spent: tweetsToTrack.reduce(
             (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
             0
           ),
+          saved_tweets: null,
+          tweeted_tweets: null,
+          hashtags_saved: null,
           tweet_lengths: tweetsToTrack.map(t => t.content?.length || 0)
         });
 
-        // Log any errors
         if (error) {
           console.error('Activity Insert Error:', error);
         }
