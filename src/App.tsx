@@ -238,45 +238,24 @@ const App = () => {
   const trackActivity = async (event: 'generate' | 'save' = 'generate') => {
     try {
       if (event === 'generate') {
-        const tweetsToTrack = tweets || [];
+        const validTweetsToTrack = tweets.filter(t => t.content && t.content.length <= 280);
         const currentTime = new Date().toISOString();
         
-        // Debug logging
-        console.log('Activity Tracking Debug:', {
-          tweetsToTrack,
-          hashtags: tweetsToTrack.flatMap(t => extractHashtags(t.content || "")),
-          totalTweets: tweetsToTrack.length,
-          tokenCount: tweetsToTrack.reduce(
-            (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
-            0
-          )
-        });
-
-        const { data, error } = await supabase.from('activity').insert({
+        await supabase.from('activity').insert({
           access_timestamp: currentTime,
           created_at: currentTime,
           sign_in_time: currentTime,
           user_id: user?.id ?? undefined,
           source_url: sourceUrl ? sourceUrl.trim() : null,
           input_text: inputText?.trim() || null,
-          generated_tweets: JSON.stringify(tweetsToTrack),  // Fix: Ensure proper JSON
-          hashtags_generated: tweetsToTrack.flatMap(t => extractHashtags(t.content || "")),
-          total_tweets_generated: tweetsToTrack.length || 0,  // Fix: Ensure number
-          total_tokens_spent: tweetsToTrack.reduce(
-            (acc, t) => acc + (Math.ceil((t.content?.length || 0) / 4)),
-            0
-          ),
-          saved_tweets: null,
-          tweeted_tweets: null,
-          hashtags_saved: null,
-          tweet_lengths: tweetsToTrack.map(t => t.content?.length || 0)
+          generated_tweets: validTweetsToTrack.map(t => t.content),  // Direct array of content
+          total_tweets_generated: validTweetsToTrack.length,  // Use validated count
+          tweet_lengths: validTweetsToTrack.map(t => t.content.length),  // No optional chaining needed
+          saved_tweets: [],  // Initialize empty
+          hashtags_generated: validTweetsToTrack.flatMap(t => extractHashtags(t.content)),
+          total_tokens_spent: Math.ceil((inputText?.length || 0) / 4)
         });
-
-        if (error) {
-          console.error('Activity Insert Error:', error);
-        }
       } else if (event === 'save') {
-        // Find and update existing record
         const { data: lastActivity } = await supabase
           .from('activity')
           .select('*')
@@ -288,9 +267,8 @@ const App = () => {
           await supabase
             .from('activity')
             .update({
-              saved_tweets: JSON.stringify(savedTweets),
               access_timestamp: new Date().toISOString(),
-              hashtags_saved: savedTweets.flatMap(t => extractHashtags(t.content ? t.content : ""))
+              hashtags_saved: savedTweets.flatMap(t => extractHashtags(t.content || ""))
             })
             .eq('id', lastActivity[0].id);
         }
