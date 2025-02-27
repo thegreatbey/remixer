@@ -162,7 +162,11 @@ const App = () => {
         user_input: inputText,
         input_length: inputText.length,
         input_token_cost: Math.ceil(inputText.length / 4),
-        generated_tweets: JSON.stringify(tweets),  // Proper JSON serialization
+        generated_tweets: {
+          "tweets": tweets.map(t => ({
+            content: t.content
+          }))
+        },
         generated_tweets_metrics: JSON.stringify(generatedTweetsMetrics),  // Proper JSON serialization
         saved_tweet_length: tweet?.content?.length || 0,  // Null safety
         saved_tweet_token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0,  // Null safety
@@ -238,9 +242,15 @@ const App = () => {
   const trackActivity = async (event: 'generate' | 'save' = 'generate') => {
     try {
       if (event === 'generate') {
-        const validTweetsToTrack = tweets.filter(t => t.content && t.content.length <= 280);
         const currentTime = new Date().toISOString();
         
+        // Get metrics in same format as public.tweets
+        const generatedTweetsMetrics = JSON.stringify(tweets.map(tweet => ({
+          content: tweet?.content || "", 
+          length: tweet?.content?.length || 0,
+          token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
+        })));
+
         await supabase.from('activity').insert({
           access_timestamp: currentTime,
           created_at: currentTime,
@@ -248,11 +258,11 @@ const App = () => {
           user_id: user?.id ?? undefined,
           source_url: sourceUrl ? sourceUrl.trim() : null,
           input_text: inputText?.trim() || null,
-          generated_tweets: validTweetsToTrack.map(t => t.content),  // Direct array of content
-          total_tweets_generated: validTweetsToTrack.length,  // Use validated count
-          tweet_lengths: validTweetsToTrack.map(t => t.content.length),  // No optional chaining needed
-          saved_tweets: [],  // Initialize empty
-          hashtags_generated: validTweetsToTrack.flatMap(t => extractHashtags(t.content)),
+          generated_tweets_metrics: generatedTweetsMetrics,  // Now properly stringified
+          total_tweets_generated: tweets.length,
+          tweet_lengths: tweets.map(t => t.content.length),
+          saved_tweets: { "tweets": [] },
+          hashtags_generated: tweets.flatMap(t => extractHashtags(t.content)),
           total_tokens_spent: Math.ceil((inputText?.length || 0) / 4)
         });
       } else if (event === 'save') {
@@ -264,13 +274,25 @@ const App = () => {
           .limit(1);
 
         if (lastActivity?.[0]) {
+          // Type-safe handling of session tweets
+          const sessionSavedTweets = savedTweets
+            .filter((t): t is Tweet & { content: string } => 
+              t.user_id === user?.id && !!t.content
+            );
+          
           await supabase
             .from('activity')
             .update({
               access_timestamp: new Date().toISOString(),
-              hashtags_saved: savedTweets.flatMap(t => extractHashtags(t.content || ""))
+              hashtags_saved: extractHashtags(
+                sessionSavedTweets
+                  .filter(t => t.content !== undefined && t.content !== null)
+                  .map(t => t.content)
+                  .join(" ")
+              )
             })
-            .eq('id', lastActivity[0].id);
+            .eq('id', lastActivity[0].id)
+            .eq('user_id', user?.id);
         }
       }
     } catch (error) {
