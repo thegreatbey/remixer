@@ -128,7 +128,15 @@ const App = () => {
       await trackActivity('generate');
     } catch (error) {
       console.error('Error remixing text:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate tweets');
+      
+      // Check specifically for Claude service busy error
+      // This ensures users get a clear message when the AI service is temporarily unavailable
+      if (error instanceof Error && error.message.includes('temporarily busy')) {
+        setError('Service is temporarily busy. Please try again in a few moments.');
+      } else {
+        // Handle all other types of errors with either the error message or default fallback
+        setError(error instanceof Error ? error.message : 'Failed to generate tweets');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -244,27 +252,43 @@ const App = () => {
       if (event === 'generate') {
         const currentTime = new Date().toISOString();
         
-        // Get metrics in same format as public.tweets
-        const generatedTweetsMetrics = JSON.stringify(tweets.map(tweet => ({
-          content: tweet?.content || "", 
-          length: tweet?.content?.length || 0,
-          token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
-        })));
-
-        await supabase.from('activity').insert({
+        // Format the data exactly as it appears in working rows
+        const activityData = {
           access_timestamp: currentTime,
           created_at: currentTime,
           sign_in_time: currentTime,
           user_id: user?.id ?? undefined,
           source_url: sourceUrl ? sourceUrl.trim() : null,
           input_text: inputText?.trim() || null,
-          generated_tweets_metrics: generatedTweetsMetrics,  // Now properly stringified
-          total_tweets_generated: tweets.length,
-          tweet_lengths: tweets.map(t => t.content.length),
-          saved_tweets: { "tweets": [] },
-          hashtags_generated: tweets.flatMap(t => extractHashtags(t.content)),
-          total_tokens_spent: Math.ceil((inputText?.length || 0) / 4)
-        });
+          generated_tweets_metrics: tweets.map(tweet => ({
+            content: tweet?.content || "",
+            length: tweet?.content?.length || 0,
+            token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
+          })),
+          total_tweets_generated: tweets.length || 0,
+          tweet_lengths: tweets.map(t => t?.content?.length || 0),
+          saved_tweets: { tweets: [] },
+          hashtags_generated: tweets.flatMap(t => extractHashtags(t.content)) || [],
+          total_tokens_spent: Math.ceil((inputText?.length || 0) / 4) || 0
+        };
+
+        // Debug logs
+        console.log('=== Activity Tracking Debug ===');
+        console.log('Event:', event);
+        console.log('Activity Data:', JSON.stringify(activityData, null, 2));
+        
+        const { data, error } = await supabase
+          .from('activity')
+          .insert([activityData])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase Error:', error);
+          throw error;
+        }
+
+        console.log('Inserted Data:', data);
       } else if (event === 'save') {
         const { data: lastActivity } = await supabase
           .from('activity')
@@ -274,29 +298,29 @@ const App = () => {
           .limit(1);
 
         if (lastActivity?.[0]) {
-          // Type-safe handling of session tweets
-          const sessionSavedTweets = savedTweets
-            .filter((t): t is Tweet & { content: string } => 
-              t.user_id === user?.id && !!t.content
-            );
+          // Get the most recently saved tweet
+          const lastSavedTweet = savedTweets[savedTweets.length - 1];
           
-          await supabase
+          // Replace hashtags instead of appending
+          const { error } = await supabase
             .from('activity')
             .update({
               access_timestamp: new Date().toISOString(),
-              hashtags_saved: extractHashtags(
-                sessionSavedTweets
-                  .filter(t => t.content !== undefined && t.content !== null)
-                  .map(t => t.content)
-                  .join(" ")
-              )
+              saved_tweets: { 
+                tweets: lastSavedTweet ? [{ content: lastSavedTweet.content }] : [] 
+              },
+              hashtags_saved: extractHashtags(lastSavedTweet?.content || '')  // Only use the last saved tweet's hashtags
             })
             .eq('id', lastActivity[0].id)
             .eq('user_id', user?.id);
+
+          if (error) throw error;
         }
       }
     } catch (error) {
-      console.error('Error tracking activity:', error);
+      console.error('Activity Tracking Error:', error);
+      // Log the full error object for debugging
+      console.error('Full error:', JSON.stringify(error, null, 2));
     }
   };
 
