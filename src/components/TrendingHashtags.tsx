@@ -64,7 +64,19 @@ const TrendingHashtags = () => {
   return (
     <div className="overflow-hidden w-[300px]">
       <span className="inline-block animate-scroll text-black-400 text-base whitespace-nowrap">
-        {trendingHashtags.join(' • ')}
+        {trendingHashtags.map((tag, index) => (
+          <span key={index}>
+            <a 
+              href={`https://twitter.com/search?q=${encodeURIComponent(tag)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-black-400 hover:underline"
+            >
+              {tag}
+            </a>
+            {index < trendingHashtags.length - 1 && <span className="mx-1"></span>}
+          </span>
+        ))}
       </span>
     </div>
   );
