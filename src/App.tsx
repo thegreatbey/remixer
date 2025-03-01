@@ -193,10 +193,9 @@ const App = () => {
         console.error('Error inserting generated tweets:', error);
       } else if (data && data[0]) {
         console.log('Successfully inserted generated tweets data, ID:', data[0].id);
-        // For guest users, track this tweet ID in the session
-        if (!user && data[0].id) {
-          setSessionTweetIds(prev => [...prev, data[0].id]);
-        }
+        // For guest users, we no longer track empty content tweets in the session
+        // We'll only track tweets after they're explicitly saved with content
+        // This prevents empty tweets from showing up in the saved tweets sidebar
       }
       
       // Pass the all_generated_tweets data to trackActivity
@@ -354,7 +353,8 @@ const App = () => {
         });
         
         // For guest users, track this tweet ID in the session
-        if (!user && data[0].id) {
+        // Only track tweets with actual content
+        if (!user && data[0].id && data[0].content && data[0].content.trim() !== "") {
           setSessionTweetIds(prev => {
             if (!prev.includes(data[0].id)) {
               return [...prev, data[0].id];
@@ -606,14 +606,20 @@ const App = () => {
   // Modify getVisibleTweets to be more strict about guest sessions
   const getVisibleTweets = () => {
     if (user) {
-      // For authenticated users, show their tweets
-      return savedTweets.filter(tweet => tweet.user_id === user.id);
+      // For authenticated users, show their tweets with non-empty content
+      return savedTweets.filter(tweet => 
+        tweet.user_id === user.id && 
+        tweet.content && 
+        tweet.content.trim() !== ""
+      );
     } else {
-      // For guest users, only show tweets from this session
+      // For guest users, only show tweets from this session with non-empty content
       // This ensures after logout, previous session tweets aren't visible
       return savedTweets.filter(tweet => 
         sessionTweetIds.includes(tweet.id) && 
-        tweet.user_id === null
+        tweet.user_id === null &&
+        tweet.content && 
+        tweet.content.trim() !== ""
       );
     }
   };
@@ -652,15 +658,25 @@ const App = () => {
       }
       
       // Now update the tweeted column
-      const { error: updateError } = await supabase
+      const { data: updatedTweet, error: updateError } = await supabase
         .from('tweets')
         .update({ tweeted: tweetText })
-        .eq('id', tweet.id);
+        .eq('id', tweet.id)
+        .select()
+        .single();
         
       if (updateError) {
         console.error('Error updating tweeted column:', updateError);
         setError(`Failed to update database: ${updateError.message}`);
       } else {
+        // Update local state to reflect the tweet has been tweeted
+        // This ensures the UI updates correctly in both auth and guest modes
+        if (updatedTweet) {
+          setSavedTweets(prev => 
+            prev.map(t => t.id === updatedTweet.id ? updatedTweet : t)
+          );
+        }
+        
         // Update activity table
         let lastActivity;
         

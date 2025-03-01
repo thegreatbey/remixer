@@ -48,7 +48,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
 
   // Tweet display section
   return (
-    <div className="space-y-4">
+    <div className={`${isSavedList ? 'space-y-2' : 'space-y-4'}`}>
       {tweets.map((tweet) => {
         console.log('Rendering tweet:', tweet, 'isSavedList:', isSavedList); // Debug log
         // Check if this tweet has been tweeted
@@ -63,7 +63,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
         return (
           <div 
             key={tweet.id} 
-            className={`p-4 rounded-lg shadow relative ${
+            className={`${isSavedList ? 'p-3' : 'p-4'} rounded-lg shadow relative ${
               isTweeted ? 'bg-blue-50 border border-blue-200' : 'bg-white'
             }`}
           >
@@ -75,11 +75,11 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
             )}
             
             {/* Tweet content */}
-            <p className="text-gray-800 mb-2 pr-16">{tweet.content}</p>
+            <p className={`text-gray-800 ${isSavedList ? 'mb-1 text-sm' : 'mb-2'} pr-16`}>{tweet.content}</p>
             
             {/* Source attribution - if available */}
             {tweetSourceUrl && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className={`${isSavedList ? 'mt-1' : 'mt-2'} text-sm text-gray-600`}>
                 Source: <a href={tweetSourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{tweetSourceUrl}</a>
               </p>
             )}
@@ -90,10 +90,10 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
             </div>
             
             {/* Action buttons */}
-            <div className="mt-2 flex space-x-2">
+            <div className={`${isSavedList ? 'mt-1' : 'mt-2'} flex space-x-2`}>
               <button 
                 onClick={() => handleTweetThis(tweet, tweet.content, tweetSourceUrl)}
-                className={`px-4 py-2 text-white rounded ${
+                className={`${isSavedList ? 'px-3 py-1 text-sm' : 'px-4 py-2'} text-white rounded ${
                   isTweeted 
                     ? 'bg-blue-400 hover:bg-blue-500' // Lighter blue for already tweeted
                     : 'bg-blue-500 hover:bg-blue-600'
@@ -120,7 +120,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
                     console.log('Delete button clicked for tweet:', tweet); // Debug log
                     onDeleteTweet(tweet);
                   }}
-                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
                 >
                   Delete Tweet
                 </button>
