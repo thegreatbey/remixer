@@ -19,6 +19,7 @@ export interface Tweet {
     saved_tweet_token_cost: number | null;
     user_input: string | null;
     all_generated_tweets?: string | null;
+    tweeted?: string | null;
 }
 
 export interface TweetMetrics {

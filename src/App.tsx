@@ -249,11 +249,19 @@ const App = () => {
       
       if (allGeneratedTweets && typeof allGeneratedTweets === 'string') {
         // Only search if we have all_generated_tweets data as a string
-        const result = await supabase
+        let query = supabase
           .from('tweets')
           .select('*')
-          .eq('all_generated_tweets', allGeneratedTweets)
-          .eq('user_id', user?.id || null);
+          .eq('all_generated_tweets', allGeneratedTweets);
+        
+        // Use .is() for null values and .eq() for string values
+        if (user?.id) {
+          query = query.eq('user_id', user.id);
+        } else {
+          query = query.is('user_id', null);
+        }
+        
+        const result = await query;
         
         existingRecords = result.data || [];
         findError = result.error;
@@ -413,77 +421,6 @@ const App = () => {
   const getRemainingCharacters = (content: string): number => {
     const urlLength = sourceUrl ? 25 : 0;  // URL counts as 25 if present
     return 280 - content.length - urlLength;
-  };
-
-  // Add a test function to check if we can insert data into the tweets table
-  const testTweetsTableInsert = async () => {
-    try {
-      console.log('=== TEST TWEETS TABLE INSERT ===');
-      console.log('Current user state:', user ? 'Authenticated' : 'Guest');
-      
-      // Create a simple test object
-      const testData = {
-        content: "Test tweet " + new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        source_url: null,
-        user_id: user?.id || null,  // Will be null for guest mode
-        user_input: "Test input",
-        input_length: 10,
-        input_token_cost: 3,
-        generated_tweets: { tweets: [{ content: "Test generated tweet" }] },
-        generated_tweets_metrics: JSON.stringify([{ content: "Test", length: 4, token_cost: 1 }]),
-        saved_tweet_length: 10,
-        saved_tweet_token_cost: 3,
-        hashtags: ["#test"],
-        all_generated_tweets: JSON.stringify({ test: true })
-      };
-      
-      console.log('Test data for tweets table:', testData);
-      console.log('Test data user_id:', testData.user_id);
-      
-      // Try to insert the test data
-      console.log('Calling supabase.from("tweets").insert() with test data...');
-      const { data, error } = await supabase
-        .from('tweets')
-        .insert(testData)
-        .select();
-      
-      console.log('Supabase test response - data:', data);
-      console.log('Supabase test response - error:', error);
-      
-      if (error) {
-        console.error('Supabase error details:', error.code, error.message, error.details);
-        setError(`Test insert failed: ${error.message}`);
-      } else if (data && data.length > 0) {
-        // If successful, also try to load tweets to verify they can be retrieved
-        console.log('Test insert succeeded! ID:', data[0].id);
-        setError(`Test insert succeeded! ID: ${data[0].id}`);
-        
-        // Refresh the saved tweets list
-        if (user) {
-          const { data: loadedData } = await supabase
-            .from('tweets')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-          
-          console.log('Loaded authenticated user tweets:', loadedData);
-        } else {
-          const { data: loadedData } = await supabase
-            .from('tweets')
-            .select('*')
-            .is('user_id', null)
-            .order('created_at', { ascending: false });
-          
-          console.log('Loaded guest user tweets:', loadedData);
-        }
-      } else {
-        setError('Test insert returned no data or error');
-      }
-    } catch (e) {
-      console.error('Error in test insert:', e);
-      setError(`Test error: ${e instanceof Error ? e.message : String(e)}`);
-    }
   };
 
   const trackActivity = async (event: 'generate' | 'save' = 'generate', allGeneratedTweetsData?: string) => {
@@ -666,14 +603,99 @@ const App = () => {
     }
   };
 
-  // Helper function to get tweets for the current user/session
+  // Modify getVisibleTweets to be more strict about guest sessions
   const getVisibleTweets = () => {
     if (user) {
       // For authenticated users, show their tweets
       return savedTweets.filter(tweet => tweet.user_id === user.id);
     } else {
       // For guest users, only show tweets from this session
-      return savedTweets.filter(tweet => sessionTweetIds.includes(tweet.id));
+      // This ensures after logout, previous session tweets aren't visible
+      return savedTweets.filter(tweet => 
+        sessionTweetIds.includes(tweet.id) && 
+        tweet.user_id === null
+      );
+    }
+  };
+
+  // Add handleTweetThis function to track when a tweet is tweeted
+  const handleTweetThis = async (tweet: Tweet) => {
+    try {
+      // Get the tweet content with source URL if available
+      const tweetSourceUrl = tweet.source_url || sourceUrl;
+      let tweetText = tweet.content;
+      if (tweetSourceUrl) {
+        tweetText = `${tweet.content} ${tweetSourceUrl}`.trim();
+      }
+      
+      // Check if this is a generated tweet (has ID like 'generated-0')
+      // Generated tweets need to be saved first before they can be tweeted
+      if (tweet.id && tweet.id.startsWith('generated-')) {
+        // Save the tweet first to get a proper database ID
+        await handleSaveTweet(tweet);
+        
+        // After saving, find the newly saved tweet in the database
+        const { data: savedTweets, error: findError } = await supabase
+          .from('tweets')
+          .select('*')
+          .eq('content', tweet.content)
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (findError || !savedTweets || savedTweets.length === 0) {
+          setError('Could not find saved tweet to update. Please try again.');
+          return;
+        }
+        
+        // Use the saved tweet's ID for the update
+        tweet = savedTweets[0];
+      }
+      
+      // Now update the tweeted column
+      const { error: updateError } = await supabase
+        .from('tweets')
+        .update({ tweeted: tweetText })
+        .eq('id', tweet.id);
+        
+      if (updateError) {
+        console.error('Error updating tweeted column:', updateError);
+        setError(`Failed to update database: ${updateError.message}`);
+      } else {
+        // Update activity table
+        let lastActivity;
+        
+        if (user?.id) {
+          // For authenticated users
+          const { data } = await supabase
+            .from('activity')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          lastActivity = data;
+        } else {
+          // For guest users
+          const { data } = await supabase
+            .from('activity')
+            .select('*')
+            .is('user_id', null)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          lastActivity = data;
+        }
+        
+        if (lastActivity && lastActivity.length > 0) {
+          await supabase
+            .from('activity')
+            .update({ tweeted_tweet: tweetText })
+            .eq('id', lastActivity[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleTweetThis:', error);
+      setError(`Error tweeting: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -685,12 +707,6 @@ const App = () => {
           <TrendingHashtags />
           {user ? (
             <div className="flex items-center space-x-4">
-              <button
-                onClick={testTweetsTableInsert}
-                className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
-              >
-                Test DB
-              </button>
               <a
                 onClick={async () => {
                   try {
@@ -739,6 +755,8 @@ const App = () => {
                     setSourceUrl('');
                     setTweets([]);
                     setSavedTweets([]);
+                    // Reset session tweet IDs to ensure "Show Saved Tweets" button doesn't appear
+                    setSessionTweetIds([]);
                     setError(null);
                     setIsPopoutVisible(false);
                   } catch (error) {
@@ -846,6 +864,7 @@ const App = () => {
           <SavedTweets 
             tweets={tweets} 
             onSaveTweet={handleSaveTweet}
+            onTweetThis={handleTweetThis}
             isSavedList={false}
             getRemainingCharacters={getRemainingCharacters}
             sourceUrl={sourceUrl}
@@ -875,6 +894,7 @@ const App = () => {
             <SavedTweets 
               tweets={getVisibleTweets()}
               onDeleteTweet={handleDeleteTweet}
+              onTweetThis={handleTweetThis}
               isSavedList={true}
               getRemainingCharacters={getRemainingCharacters}
               sourceUrl={sourceUrl}
