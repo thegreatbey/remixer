@@ -252,23 +252,43 @@ const App = () => {
       if (event === 'generate') {
         const currentTime = new Date().toISOString();
         
+        // Create metrics in the same format as in handleSaveTweet
+        const metricsData = tweets.map(tweet => ({
+          content: tweet?.content || "", 
+          length: tweet?.content?.length || 0,
+          token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
+        }));
+        
+        // Stringify the metrics data
+        const metricsString = JSON.stringify(metricsData);
+        console.log('Metrics string for activity:', metricsString);
+        
+        // Extract tweet lengths and hashtags for the activity table
+        const tweetLengths = tweets.map(t => t?.content?.length || 0);
+        const extractedHashtags = tweets.flatMap(t => extractHashtags(t.content));
+        
+        // Log the extracted hashtags
+        console.log('Extracted hashtags for activity:', extractedHashtags);
+        
+        // Log whether this is a guest or authenticated user
+        console.log('User status:', user ? 'Authenticated' : 'Guest');
+        
         // Format the data exactly as it appears in working rows
-        const activityData = {
+        const activityData: any = {
           access_timestamp: currentTime,
           created_at: currentTime,
-          sign_in_time: currentTime,
-          user_id: user?.id ?? undefined,
+          // Only include sign_in_time for authenticated users
+          ...(user?.id ? { sign_in_time: currentTime } : {}),
+          user_id: user?.id || null, // Use null for guest users
           source_url: sourceUrl ? sourceUrl.trim() : null,
           input_text: inputText?.trim() || null,
-          generated_tweets_metrics: tweets.map(tweet => ({
-            content: tweet?.content || "",
-            length: tweet?.content?.length || 0,
-            token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
-          })),
+          // Store the metrics as a JSON string
+          generated_tweets_metrics: metricsString,
           total_tweets_generated: tweets.length || 0,
-          tweet_lengths: tweets.map(t => t?.content?.length || 0),
+          // Store tweet lengths and hashtags in their respective columns
+          tweet_lengths: tweetLengths,
           saved_tweets: { tweets: [] },
-          hashtags_generated: tweets.flatMap(t => extractHashtags(t.content)) || [],
+          hashtags_generated: extractedHashtags,
           total_tokens_spent: Math.ceil((inputText?.length || 0) / 4) || 0
         };
 
@@ -277,6 +297,7 @@ const App = () => {
         console.log('Event:', event);
         console.log('Activity Data:', JSON.stringify(activityData, null, 2));
         
+        // Insert the activity data
         const { data, error } = await supabase
           .from('activity')
           .insert([activityData])
@@ -290,31 +311,93 @@ const App = () => {
 
         console.log('Inserted Data:', data);
       } else if (event === 'save') {
-        const { data: lastActivity } = await supabase
-          .from('activity')
-          .select('*')
-          .eq('user_id', user?.id ?? undefined)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (lastActivity?.[0]) {
-          // Get the most recently saved tweet
+        // Handle both authenticated and guest users
+        // For guest users, we don't have user.id, but we still need to update the activity
+        try {
+          // Get the most recently saved tweet - this should be the one that was just saved
           const lastSavedTweet = savedTweets[savedTweets.length - 1];
+          if (!lastSavedTweet) {
+            console.error('No saved tweet found');
+            return;
+          }
           
-          // Replace hashtags instead of appending
+          console.log('Last saved tweet:', lastSavedTweet);
+          
+          // Find the last activity record - for guest users, we need a different approach
+          let lastActivity;
+          
+          if (user?.id) {
+            // For authenticated users
+            const { data } = await supabase
+              .from('activity')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(1);
+              
+            lastActivity = data;
+          } else {
+            // For guest users - find the most recent activity with null user_id
+            const { data } = await supabase
+              .from('activity')
+              .select('*')
+              .is('user_id', null)
+              .order('created_at', { ascending: false })
+              .limit(1);
+              
+            lastActivity = data;
+          }
+            
+          if (!lastActivity || lastActivity.length === 0) {
+            console.error('No activity record found');
+            return;
+          }
+          
+          console.log('Found activity record:', lastActivity[0]);
+          
+          // Extract hashtags from the saved tweet
+          const hashtags = extractHashtags(lastSavedTweet.content || '');
+          
+          // Log the metrics data from the saved tweet
+          console.log('Metrics from saved tweet:', lastSavedTweet.generated_tweets_metrics);
+          
+          // Create update data object
+          const updateData: any = {
+            hashtags_saved: hashtags
+          };
+          
+          // Directly use the metrics from the saved tweet
+          if (lastSavedTweet.generated_tweets_metrics) {
+            updateData.generated_tweets_metrics = lastSavedTweet.generated_tweets_metrics;
+            console.log('Adding metrics to update:', updateData.generated_tweets_metrics);
+          } else {
+            console.warn('No metrics found in saved tweet');
+            
+            // As a fallback, regenerate the metrics
+            const generatedTweetsMetrics = tweets.map(tweet => ({
+              content: tweet?.content || "", 
+              length: tweet?.content?.length || 0,
+              token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0
+            }));
+            
+            updateData.generated_tweets_metrics = JSON.stringify(generatedTweetsMetrics);
+            console.log('Using fallback metrics:', updateData.generated_tweets_metrics);
+          }
+          
+          // Update the activity record
+          console.log('Updating activity with:', updateData);
           const { error } = await supabase
             .from('activity')
-            .update({
-              access_timestamp: new Date().toISOString(),
-              saved_tweets: { 
-                tweets: lastSavedTweet ? [{ content: lastSavedTweet.content }] : [] 
-              },
-              hashtags_saved: extractHashtags(lastSavedTweet?.content || '')  // Only use the last saved tweet's hashtags
-            })
-            .eq('id', lastActivity[0].id)
-            .eq('user_id', user?.id);
-
-          if (error) throw error;
+            .update(updateData)
+            .eq('id', lastActivity[0].id);
+          
+          if (error) {
+            console.error('Error updating activity:', error);
+          } else {
+            console.log('Successfully updated activity with hashtags and metrics');
+          }
+        } catch (error) {
+          console.error('Error in save activity tracking:', error);
         }
       }
     } catch (error) {
