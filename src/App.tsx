@@ -603,18 +603,26 @@ const App = () => {
     }
   };
 
-  // Modify getVisibleTweets to be more strict about guest sessions
+  // Filter tweets for display in the saved tweets sidebar
+  // This ensures only explicitly saved tweets with content are shown
+  // and handles both authenticated and guest user sessions
   const getVisibleTweets = () => {
     if (user) {
-      // For authenticated users, show their tweets with non-empty content
+      // For authenticated users:
+      // - Show only tweets owned by the current user
+      // - Only include tweets with actual content (not empty placeholders)
+      // - This filters out tweets that were generated but not explicitly saved
       return savedTweets.filter(tweet => 
         tweet.user_id === user.id && 
         tweet.content && 
         tweet.content.trim() !== ""
       );
     } else {
-      // For guest users, only show tweets from this session with non-empty content
-      // This ensures after logout, previous session tweets aren't visible
+      // For guest users:
+      // - Only show tweets from the current browser session
+      // - Only include tweets with null user_id (guest tweets)
+      // - Only include tweets with actual content (not empty placeholders)
+      // - This prevents seeing tweets from previous guest sessions
       return savedTweets.filter(tweet => 
         sessionTweetIds.includes(tweet.id) && 
         tweet.user_id === null &&
@@ -624,23 +632,28 @@ const App = () => {
     }
   };
 
-  // Add handleTweetThis function to track when a tweet is tweeted
+  // Process a tweet for sharing to Twitter
+  // This function:
+  // - Handles both generated and saved tweets
+  // - Updates the database to mark tweets as tweeted
+  // - Updates the UI state to reflect tweeted status
+  // - Works for both authenticated and guest users
   const handleTweetThis = async (tweet: Tweet) => {
     try {
-      // Get the tweet content with source URL if available
+      // Prepare the tweet text with source URL if available
       const tweetSourceUrl = tweet.source_url || sourceUrl;
       let tweetText = tweet.content;
       if (tweetSourceUrl) {
         tweetText = `${tweet.content} ${tweetSourceUrl}`.trim();
       }
       
-      // Check if this is a generated tweet (has ID like 'generated-0')
-      // Generated tweets need to be saved first before they can be tweeted
+      // Handle generated tweets that haven't been saved yet
+      // Generated tweets have temporary IDs like 'generated-0'
       if (tweet.id && tweet.id.startsWith('generated-')) {
-        // Save the tweet first to get a proper database ID
+        // Save the tweet first to get a permanent database ID
         await handleSaveTweet(tweet);
         
-        // After saving, find the newly saved tweet in the database
+        // Find the newly saved tweet in the database
         const { data: savedTweets, error: findError } = await supabase
           .from('tweets')
           .select('*')
@@ -653,11 +666,11 @@ const App = () => {
           return;
         }
         
-        // Use the saved tweet's ID for the update
+        // Use the permanent database ID for the update
         tweet = savedTweets[0];
       }
       
-      // Now update the tweeted column
+      // Mark the tweet as tweeted in the database
       const { data: updatedTweet, error: updateError } = await supabase
         .from('tweets')
         .update({ tweeted: tweetText })
@@ -669,19 +682,19 @@ const App = () => {
         console.error('Error updating tweeted column:', updateError);
         setError(`Failed to update database: ${updateError.message}`);
       } else {
-        // Update local state to reflect the tweet has been tweeted
-        // This ensures the UI updates correctly in both auth and guest modes
+        // Update the UI to reflect the tweeted status
+        // This ensures the tweet shows as "Tweeted" immediately
         if (updatedTweet) {
           setSavedTweets(prev => 
             prev.map(t => t.id === updatedTweet.id ? updatedTweet : t)
           );
         }
         
-        // Update activity table
+        // Record the tweet action in the activity table for analytics
         let lastActivity;
         
         if (user?.id) {
-          // For authenticated users
+          // For authenticated users - find their most recent activity
           const { data } = await supabase
             .from('activity')
             .select('*')
@@ -691,7 +704,7 @@ const App = () => {
             
           lastActivity = data;
         } else {
-          // For guest users
+          // For guest users - find the most recent activity with null user_id
           const { data } = await supabase
             .from('activity')
             .select('*')
@@ -702,6 +715,7 @@ const App = () => {
           lastActivity = data;
         }
         
+        // Update the activity record with the tweeted content
         if (lastActivity && lastActivity.length > 0) {
           await supabase
             .from('activity')
