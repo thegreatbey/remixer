@@ -11,6 +11,7 @@ export const tweetsFromPost = async (text: string, showAuthFeatures: boolean): P
     });
 
     try {
+        // For Vercel deployment, we can use relative path since backend is deployed with frontend
         const response = await fetch('/api/generate', {
             method: 'POST',
             headers: {
