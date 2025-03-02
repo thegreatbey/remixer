@@ -8,12 +8,12 @@ const config: Config = {
   theme: {
     extend: {
       animation: {
-        'scroll': 'scroll 20s linear infinite',
+        'scroll': 'scroll 18s linear infinite',
       },
       keyframes: {
         scroll: {
-          '0%': { transform: 'translateX(100%)' },
-          '100%': { transform: 'translateX(-100%)' }
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-33.33%)' }
         }
       }
     },

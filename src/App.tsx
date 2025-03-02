@@ -735,8 +735,22 @@ const App = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold ml-[-16px]">Tweet Reply Generator</h1>
           <TrendingHashtags />
-          {user ? (
-            <div className="flex items-center space-x-4">
+          {/* Unified header section for both authenticated and guest users */}
+          <div className="flex items-center space-x-9">
+            <a
+              href="mailto:hi@twtbk.app"
+              className="text-black hover:underline relative group"
+            >
+              hitwtbk.app
+              <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 left-0 mt-1 w-48 text-sm z-10">
+                <div className="text-black font-bold">Get In Touch</div>
+                <div className="text-black">{'>'} Suggestions</div>
+                <div className="text-black">{'>'} Improvements</div>
+                <div className="text-black">{'>'} Questions</div>
+                <div className="text-black">{'>'} Just say hi!</div>
+              </div>
+            </a>
+            {user ? (
               <a
                 onClick={async () => {
                   try {
@@ -797,22 +811,22 @@ const App = () => {
               >
                 Sign Out
               </a>
-            </div>
-          ) : (
-            <a
-              onClick={() => setShowAuth(true)}
-              className="text-blue-500 hover:text-black-600 cursor-pointer relative group"
-              title="Account Advantages"
-            >
-              Sign In
-              <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 right-0 mt-1 w-48 text-sm z-10">
-                <div className="font-semibold mb-1 text-black">Account Advantages</div>
-                <div className="text-black">{'>'} Permanently save tweets</div>
-                <div className="text-black">{'>'} #Hashtag generation</div>
-                <div className="text-black">{'>'} More tweet options</div>
-              </div>
-            </a>
-          )}
+            ) : (
+              <a
+                onClick={() => setShowAuth(true)}
+                className="text-blue-500 hover:text-black-600 cursor-pointer relative group"
+                title="Account Advantages"
+              >
+                Sign In
+                <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 right-0 mt-1 w-48 text-sm z-10">
+                  <div className="font-semibold mb-1 text-black">Account Advantages</div>
+                  <div className="text-black">{'>'} Permanently save tweets</div>
+                  <div className="text-black">{'>'} #Hashtag generation</div>
+                  <div className="text-black">{'>'} More tweet options</div>
+                </div>
+              </a>
+            )}
+          </div>
         </div>
         {/* Show Saved Tweets button - only when there are tweets for the current user/session */}
         {getVisibleTweets().length > 0 && (

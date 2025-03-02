@@ -46,17 +46,17 @@ const TrendingHashtags = () => {
       hashtagPairs.sort((a, b) => b[1] - a[1]);
       
       // Determine the threshold for inclusion in top hashtags
-      // This finds the count of the 5th most popular hashtag
-      const fifthPlaceCount = hashtagPairs.length >= 5 ? hashtagPairs[4][1] : 0;
+      // This finds the count of the 7th most popular hashtag
+      const seventhPlaceCount = hashtagPairs.length >= 7 ? hashtagPairs[6][1] : 0;
       
       // Select all hashtags that meet or exceed the threshold
-      // This includes all hashtags tied for 5th place or better
+      // This includes all hashtags tied for 7th place or better
       const topHashtags = hashtagPairs
-        .filter(([_, count]) => count >= fifthPlaceCount)
+        .filter(([_, count]) => count >= seventhPlaceCount)
         .map(([tag, _]) => tag);
       
       // Update state with the trending hashtags
-      // This may include more than 5 hashtags if there are ties
+      // This may include more than 7 hashtags if there are ties
       setTrendingHashtags(topHashtags);
     } catch (error) {
       console.error('Error fetching trending hashtags:', error);
@@ -91,24 +91,34 @@ const TrendingHashtags = () => {
     return null;
   }
 
+  // Create a hashtag display component for reuse
+  const HashtagDisplay = () => (
+    <>
+      {trendingHashtags.map((tag, index) => (
+        <span key={index} className="inline-block">
+          <a 
+            href={`https://twitter.com/search?q=${encodeURIComponent(tag)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-black hover:underline"
+          >
+            {tag}
+          </a>
+          <span className="mx-2"></span>
+        </span>
+      ))}
+    </>
+  );
+
   // Display the trending hashtags in a horizontally scrolling container
+  // We duplicate the content to create a seamless loop
   return (
-    <div className="overflow-hidden w-[300px]">
-      <span className="inline-block animate-scroll text-black text-base whitespace-nowrap">
-        {trendingHashtags.map((tag, index) => (
-          <span key={index}>
-            <a 
-              href={`https://twitter.com/search?q=${encodeURIComponent(tag)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-black hover:underline"
-            >
-              {tag}
-            </a>
-            {index < trendingHashtags.length - 1 && <span className="mx-1"></span>}
-          </span>
-        ))}
-      </span>
+    <div className="overflow-hidden w-[300px] relative">
+      <div className="inline-block whitespace-nowrap animate-scroll text-black text-base">
+        <HashtagDisplay />
+        <HashtagDisplay />
+        <HashtagDisplay />
+      </div>
     </div>
   );
 };
