@@ -737,8 +737,10 @@ const App = () => {
           <TrendingHashtags />
           {/* Unified header section for both authenticated and guest users */}
           <div className="flex items-center space-x-9">
-            <a
-              href="mailto:hi@twtbk.app"
+          <a href="#" onClick={(e) => {
+    e.preventDefault();
+    window.location.href = 'mailto:' + 'hi' + '@' + 'twtbk.app';
+}}
               className="text-black hover:underline relative group"
             >
               hitwtbk.app
