@@ -2,3 +2,4 @@ node_modules
 .env
 dist
 backups/tweets_backup.json
+.standard_operating_procedures

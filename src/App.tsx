@@ -7,6 +7,7 @@ import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { Tweet } from './types/types'
 import TrendingHashtags from './components/TrendingHashtags'
+import WordCaptcha from './components/WordCaptcha'
 //import type { Json } from './types/supabase'
 
 // Add interface for tweet metrics
@@ -34,6 +35,8 @@ const App = () => {
   });
   // Track session tweets separately without affecting database operations
   const [sessionTweetIds, setSessionTweetIds] = useState<string[]>([]);
+  // Add a new state variable to track if CAPTCHA is completed
+  const [captchaCompleted, setCaptchaCompleted] = useState<boolean>(false);
 
   useEffect(() => {
     console.log('useEffect triggered');
@@ -864,19 +867,24 @@ const App = () => {
         )}
         
         {tweets.length === 0 ? (
-          <button
-            onClick={handleRemix}
-            disabled={isLoading || !inputText.trim()}
-            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg min-w-[150px]"
-          >
-            {isLoading ? (
-              <span className="inline-block min-w-[80px]">
-                Generating{loadingDots}
-              </span>
-            ) : (
-              'Generate Tweets'
-            )}
-          </button>
+          /* Conditionally show CAPTCHA or Generate Button based on user auth status and CAPTCHA completion */
+          user || captchaCompleted ? (
+            <button
+              onClick={handleRemix}
+              disabled={isLoading || !inputText.trim()}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg min-w-[150px]"
+            >
+              {isLoading ? (
+                <span className="inline-block min-w-[80px]">
+                  Generating{loadingDots}
+                </span>
+              ) : (
+                'Generate Tweets'
+              )}
+            </button>
+          ) : (
+            <WordCaptcha onSuccess={() => setCaptchaCompleted(true)} />
+          )
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <button
