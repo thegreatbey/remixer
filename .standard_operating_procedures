@@ -2,11 +2,11 @@ Tweet Generator Remixer OR Content Remix App - Standard Operating Procedures
 
 1. Core Principles
 README.md Maintenance: Ensure the README.md file is always updated and accurate.
-.standard_operating_procedures Maintenance: Ensure the .standard_operating_procedures file is always updated and accurat
+.standard_operating_procedures Maintenance: Ensure the .standard_operating_procedures file is always updated and accurate
 
 Separation of Concerns: Guest mode (temporary/session only) must always remain separate from auth mode (persistent). These behaviors should never be mixed. Logout states must be clean and ensure no data persists unintentionally.
 
-Layout Consistency: The input text area should be large, centered, and well-padded. The Generate button must match the width of the text area. When no text is entered, it should be gray and disabled. When text is entered, it should turn blue and become clickable. The overall layout should be clean, simple, and user-friendly.
+Layout Consistency: The input text area should be large, centered, and well-padded. The Generate Tweets button must match the width of the text area. When no text is entered, it should be gray and disabled. When text is entered, it should turn blue and become clickable. The overall layout should be clean, simple, and user-friendly.
 
 Complete Flow Analysis: Before suggesting changes, consider the entire user journey. Think about what happens when a user first lands, what occurs after an action is performed, and what data persists versus resets. Efficiency is important, so avoid unnecessary revisions by carefully checking changes before implementing them.
 
@@ -17,10 +17,10 @@ Communication Protocol: When discussing or implementing changes, be mindful of o
 Change Management: Avoid quick, partial fixes that could introduce new issues. Always consider all related components before implementing changes. Think proactively rather than reactively. Preserve working functionality; if something isn’t broken, don’t fix it.
 
 2.  Implementation Guidelines
-For Nongenetic Info AI, always clarify whether features are for authenticated or guest users. Ensure that all implementations align with complete user flows rather than isolated functionalities. Be precise about data persistence requirements for each feature, maintaining a clear separation between temporary and persistent states. Changes should be methodical and comprehensive rather than hasty.
+Always clarify whether features are for authenticated or guest users. Ensure that all implementations align with complete user flows rather than isolated functionalities. Be precise about data persistence requirements for each feature, maintaining a clear separation between temporary and persistent states. Changes should be methodical and comprehensive rather than hasty.
 
 3.  Working States to Preserve
-The logout state should always be clean, ensuring that guest data is not retained. The "Conversations" button should only appear when saved responses exist. Button visibility and interaction states must function as intended.
+The logout state should always be clean, ensuring that guest data is not retained. The "Show Saved Tweets" button should only appear when saved responses exist. Button visibility and interaction states must function as intended.
 
 4.  Reminder Prompts for Changes
 Before starting modifications, always begin with the user context. Consider whether a feature applies to logged-in users, guest users, or both. Internal checks should include prompts like "Check user states," "Auth implications?" or "Think full flow."
