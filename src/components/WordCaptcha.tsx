@@ -28,7 +28,10 @@ const WordCaptcha: React.FC<WordCaptchaProps> = ({ onSuccess }) => {
     { display: '_un', answer: 'S', complete: 'Sun' },
     { display: 'Mou_e', answer: 's', complete: 'Mouse' },
     { display: 'Rai_', answer: 'n', complete: 'Rain' },
-    { display: 'Clo_d', answer: 'u', complete: 'Cloud' }
+    { display: 'Clo_d', answer: 'u', complete: 'Cloud' },
+    { display: 'Mo_n', answer: 'o', complete: 'Moon' },
+    { display: 'B_rn', answer: 'a', complete: 'Barn' },
+    { display: 'S_i', answer: 'k', complete: 'Ski' },
   ];
 
   // Generate a random challenge
