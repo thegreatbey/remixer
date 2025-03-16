@@ -52,6 +52,8 @@ const App = () => {
   const [sessionTweetIds, setSessionTweetIds] = useState<string[]>([]);
   // Add a new state variable to track if CAPTCHA is completed
   const [captchaCompleted, setCaptchaCompleted] = useState<boolean>(false);
+  // Add conversation mode explanation state
+  const [showConversationInfo, setShowConversationInfo] = useState(false);
 
   useEffect(() => {
     console.log('useEffect triggered');
@@ -464,6 +466,13 @@ const App = () => {
     setSourceUrl(''); // Clear source URL field
     setShowAuth(false); // Hide auth form
     setIsPopoutVisible(false); // Hide saved tweets sidebar
+  };
+
+  // Add conversation reset function
+  const resetConversation = () => {
+    // Reset conversation history but keep mode enabled
+    setConversationHistory({ inputs: [], outputs: [] });
+    setError(null);
   };
 
   // Add this helper function
@@ -918,28 +927,60 @@ const App = () => {
           </div>
         )}
 
-        {/* Conversation Mode button - only for authenticated users, placed between URL and Generate button */}
+        {/* Conversation Mode explanation and button - only for authenticated users */}
         {user && (
-          <button
-            onClick={() => {
-              const newMode = !conversationModeEnabled;
-              setConversationModeEnabled(newMode);
-              console.log(`Conversation mode ${newMode ? 'enabled' : 'disabled'} - Token limit: ${newMode ? '1200' : '800'}`);
-            }}
-            className={`w-full px-4 py-2 rounded font-semibold text-lg ${
-              conversationModeEnabled 
-                ? `${conversationModeColor} text-black-500 hover:bg-purple-300` 
-                : 'bg-purple-500 text-white hover:bg-purple-600'
-            }`}
-          >
-            {conversationModeEnabled ? (
-              <span>
-                Conversation Mode Enabled <span className="inline-block ml-1">✓</span>
+          <>
+            <div className="mb-1 relative">
+              <span 
+                onClick={() => setShowConversationInfo(prevState => !prevState)} 
+                className="cursor-pointer text-black hover:text-purple-800 hover:underline inline-block"
+              >
+                What is Conversation Mode?
               </span>
+              {showConversationInfo && (
+                <div className="mt-1 p-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                  <p className="text-sm text-gray-700 mb-2">
+                    Conversation Mode enables the AI to remember your previous inputs and generated tweets, creating a continuous conversation.
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    This helps generate more contextually relevant tweets that build upon your earlier interactions.
+                  </p>
+                </div>
+              )}
+            </div>
+            {conversationModeEnabled ? (
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    setConversationModeEnabled(false);
+                    setConversationHistory({ inputs: [], outputs: [] });
+                  }}
+                  className={`w-full px-4 py-2 rounded font-semibold text-lg ${conversationModeColor} text-black-500 hover:bg-purple-300`}
+                >
+                  <span>
+                    Conversation Mode Enabled <span className="inline-block ml-1">✓</span>
+                  </span>
+                </button>
+                
+                <button
+                  onClick={resetConversation}
+                  className="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 text-lg font-medium"
+                >
+                  Reset Conversation
+                </button>
+              </div>
             ) : (
-              'Enable Conversation Mode'
+              <button
+                onClick={() => {
+                  setConversationModeEnabled(true);
+                  console.log('Conversation mode enabled - Token limit: 1200');
+                }}
+                className="w-full px-4 py-2 rounded font-semibold text-lg bg-purple-500 text-white hover:bg-purple-600"
+              >
+                Enable Conversation Mode
+              </button>
             )}
-          </button>
+          </>
         )}
         
         {tweets.length === 0 ? (
