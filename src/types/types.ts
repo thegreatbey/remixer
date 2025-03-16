@@ -20,6 +20,7 @@ export interface Tweet {
     user_input: string | null;
     all_generated_tweets?: string | null;
     tweeted?: string | null;
+    is_conversation_mode?: boolean | null;
 }
 
 export interface TweetMetrics {

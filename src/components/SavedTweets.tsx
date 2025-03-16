@@ -21,7 +21,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
   sourceUrl,
   getRemainingCharacters
 }) => {
-  console.log('SavedTweets props:', { tweets, onDeleteTweet, isSavedList }); // Debug log
+  // Debug log removed for production
 
   // Handles the process of sharing a tweet to Twitter
   // Includes source URL attribution and database updates
@@ -53,7 +53,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
   return (
     <div className={`${isSavedList ? 'space-y-2' : 'space-y-4'}`}>
       {tweets.map((tweet) => {
-        console.log('Rendering tweet:', tweet, 'isSavedList:', isSavedList); // Debug log
+        // Debug log removed for production
         
         // Determine if this tweet has been previously tweeted
         const isTweeted = !!tweet.tweeted;
@@ -65,22 +65,34 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
         const remainingChars = getRemainingCharacters(tweet.content);
         const isValidTweet = remainingChars >= 0;
 
+        // Determine if this is a conversation mode tweet
+        const isConversationMode = !!tweet.is_conversation_mode;
+
         return (
           <div 
             key={tweet.id} 
             className={`${isSavedList ? 'p-3' : 'p-4'} rounded-lg shadow relative ${
-              isTweeted ? 'bg-blue-50 border border-blue-200' : 'bg-white'
+              isConversationMode ? 'bg-purple-50 border border-purple-200' : 
+              isTweeted ? 'bg-blue-50 border border-blue-200' : 
+              'bg-white'
             }`}
           >
             {/* Visual indicator for tweets that have been shared */}
             {isTweeted && (
-              <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+              <div className="absolute top-2 right-2 bg-blue-500 bg-opacity-50 text-white text-xs px-2 py-1 rounded-full z-10 backdrop-blur-sm">
                 Tweeted
               </div>
             )}
             
+            {/* Visual indicator for conversation mode tweets */}
+            {isConversationMode && (
+              <div className={`absolute ${isTweeted ? 'top-9' : 'top-2'} right-2 bg-purple-600 bg-opacity-50 text-white text-xs px-2 py-1 rounded-full z-10 backdrop-blur-sm`}>
+                Conversation
+              </div>
+            )}
+            
             {/* The actual tweet content */}
-            <p className={`text-gray-800 ${isSavedList ? 'mb-1 text-sm' : 'mb-2'} pr-16`}>{tweet.content}</p>
+            <p className={`text-gray-800 text-justify ${isSavedList ? 'mb-1 text-sm' : 'mb-2'} pr-2`}>{tweet.content}</p>
             
             {/* Display source URL if available */}
             {tweetSourceUrl && (
@@ -127,7 +139,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
               {onDeleteTweet && isSavedList && (
                 <button 
                   onClick={() => {
-                    console.log('Delete button clicked for tweet:', tweet); // Debug log
+                    // Debug log removed for production
                     onDeleteTweet(tweet);
                   }}
                   className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"

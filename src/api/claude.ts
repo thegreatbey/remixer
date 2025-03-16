@@ -1,12 +1,18 @@
 import { supabase } from './supabase';
 
-export const tweetsFromPost = async (text: string, showAuthFeatures: boolean): Promise<string[]> => {
-    const maxTokens = showAuthFeatures ? 800 : 300; // Different token limits based on auth status
+export const tweetsFromPost = async (text: string, showAuthFeatures: boolean, conversationHistory?: string): Promise<string[]> => {
+    // Implement tiered token limit approach:
+    // - Non-auth users: 300 tokens
+    // - Auth users: 800 tokens
+    // - Auth users with conversation mode: 1200 tokens
+    const maxTokens = !showAuthFeatures ? 300 : 
+                      (showAuthFeatures && conversationHistory) ? 1200 : 800;
 
     // Add debugging logs
     console.log('Auth params:', { 
         showAuthFeatures,
         maxTokens,
+        hasConversationHistory: !!conversationHistory,
         timestamp: new Date().toISOString()
     });
 
@@ -20,7 +26,9 @@ export const tweetsFromPost = async (text: string, showAuthFeatures: boolean): P
             body: JSON.stringify({ 
                 text, 
                 showAuthFeatures,
-                maxTokens
+                maxTokens,
+                conversationHistory,
+                isConversationMode: !!conversationHistory
             }),
         });
 

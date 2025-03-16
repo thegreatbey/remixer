@@ -97,7 +97,7 @@ app.post('/api/tweets', async (req, res) => {
   }
 });
 
-const parseTweetsFromResponse = (data) => {
+const parseTweetsFromResponse = (data, expectedTweetCount = 3) => {
   if (!data || !data.content || !Array.isArray(data.content)) {
     console.log('Invalid response format:', data);
     return [];
@@ -126,30 +126,58 @@ const parseTweetsFromResponse = (data) => {
   
   console.log('Final parsed tweets:', tweets);
   
-  // Only return if we have exactly 3 tweets
-  return tweets.length === 3 ? tweets : [];
+  // Check if we have the expected number of tweets based on user authentication status
+  return tweets.length === expectedTweetCount ? tweets : [];
 };
 
-const generateTweets = async (text, showAuthFeatures) => {
+const generateTweets = async (text, showAuthFeatures, conversationHistory) => {
   try {
-    const maxTokens = showAuthFeatures ? 800 : 300;
+    // Implement tiered token limit approach:
+    // - Non-auth users: 300 tokens
+    // - Auth users: 800 tokens
+    // - Auth users with conversation mode: 1200 tokens
+    const maxTokens = !showAuthFeatures ? 300 : 
+                      (showAuthFeatures && conversationHistory) ? 1200 : 800;
+    
     const tweetCount = showAuthFeatures ? 4 : 3; // Define tweet count based on auth status
     let retryCount = 0;
     const MAX_RETRIES = 3;
 
     while (retryCount < MAX_RETRIES) {
+      // Build the system prompt based on auth status and conversation mode
+      let systemPrompt = showAuthFeatures ? 
+        `Generate exactly ${tweetCount} unique tweets. Each tweet should have: 1) Informative content (max 230 chars), 2) optionally followed by 0-3 relevant hashtags only if they add value to the tweet. Example formats: "AI is transforming healthcare with personalized treatment plans #AIHealth" or "New study shows remote work increases productivity by 22% #RemoteWork #Productivity #WorkCulture" or "Breaking: Tech startup launches revolutionary quantum computing platform". Each tweet on new line.` :
+        `Generate exactly ${tweetCount} unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.`;
+        
+      // Add conversation context instruction if provided
+      if (conversationHistory) {
+        systemPrompt += ` You should take into account the conversation history provided when generating these tweets to maintain context and continuity.`;
+      }
+
+      // Prepare user content based on conversation history
+      let userContent = text;
+      if (conversationHistory && retryCount === 0) {
+        userContent = `${conversationHistory}\nUser: ${text}\n\nNow generate tweets based on this conversation context and my latest message.`;
+      } else if (retryCount > 0) {
+        userContent = `${text}\n\nPrevious attempt failed. Please generate exactly ${tweetCount} tweets, each under 280 characters. Be more concise.`;
+      }
+
       const requestBody = {
         model: 'claude-3-haiku-20240307',
         max_tokens: maxTokens,  // Fresh token count for each attempt
-        system: showAuthFeatures ? 
-          `Generate exactly ${tweetCount} unique tweets. Each tweet should have: 1) Informative content (max 230 chars), 2) optionally followed by 0-3 relevant hashtags only if they add value to the tweet. Example formats: "AI is transforming healthcare with personalized treatment plans #AIHealth" or "New study shows remote work increases productivity by 22% #RemoteWork #Productivity #WorkCulture" or "Breaking: Tech startup launches revolutionary quantum computing platform". Each tweet on new line.` :
-          `Generate exactly ${tweetCount} unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.`,
+        system: systemPrompt,
         messages: [{
           role: 'user',
-          content: retryCount === 0 ? text : 
-            `${text}\n\nPrevious attempt failed. Please generate exactly ${tweetCount} tweets, each under 280 characters. Be more concise.`
+          content: userContent
         }]
       };
+
+      console.log('Sending request to Claude API:', {
+        systemPrompt,
+        hasConversationHistory: !!conversationHistory,
+        tokenLimit: maxTokens,
+        userContentPreview: userContent.substring(0, 100) + (userContent.length > 100 ? '...' : '')
+      });
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -167,7 +195,8 @@ const generateTweets = async (text, showAuthFeatures) => {
         throw new Error('Service is temporarily busy. Please try again in a few moments.');
       }
 
-      const tweets = parseTweetsFromResponse(data);
+      // Pass the expected tweet count to the parser
+      const tweets = parseTweetsFromResponse(data, tweetCount);
       
       if (tweets.length === tweetCount && tweets.every(tweet => tweet.length <= 280)) {
         console.log(`Successfully generated ${tweetCount} valid tweets`);
@@ -186,14 +215,13 @@ const generateTweets = async (text, showAuthFeatures) => {
   }
 };
 
-// Update the route handler to handle the error
-//leave this alone api/generate is fine
+// Update the route handler to handle the conversation mode parameter
 app.post('/api/generate', async (req, res) => {
-  const { text, showAuthFeatures } = req.body;
+  const { text, showAuthFeatures, conversationHistory, maxTokens } = req.body;
   
   try {
     const expectedTweetCount = showAuthFeatures ? 4 : 3;
-    const tweets = await generateTweets(text, showAuthFeatures);
+    const tweets = await generateTweets(text, showAuthFeatures, conversationHistory);
     console.log('Sending tweets to client:', tweets); // Add debug log
     
     if (!tweets || tweets.length !== expectedTweetCount) {
@@ -202,7 +230,7 @@ app.post('/api/generate', async (req, res) => {
     
     res.json(tweets);
   } catch (error) {
-    console.error('Error in /api/generate:', error); //api
+    console.error('Error in /api/generate:', error); 
     res.status(503).json({ 
       error: error.message || 'Failed to generate tweets. Please try again.' 
     });

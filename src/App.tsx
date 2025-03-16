@@ -17,6 +17,12 @@ interface TweetMetrics {
   token_cost: number;
 }
 
+// Add interface for conversation history
+interface ConversationHistory {
+  inputs: string[];
+  outputs: string[];
+}
+
 const App = () => {
   const [user, setUser] = useState<User | null>(null)
   const [inputText, setInputText] = useState<string>('')
@@ -28,6 +34,15 @@ const App = () => {
   const [showAuth, setShowAuth] = useState(false)
   const [sourceUrl, setSourceUrl] = useState<string>('');
   const [loadingDots, setLoadingDots] = useState('');
+  // Add conversation mode state
+  const [conversationModeEnabled, setConversationModeEnabled] = useState(false);
+  // Add conversation history state for authenticated users
+  const [conversationHistory, setConversationHistory] = useState<ConversationHistory>({
+    inputs: [],
+    outputs: []
+  });
+  // Change background color for conversation mode from blue to purple
+  const conversationModeColor = 'bg-purple-200';
   // Add a session ID for guest users
   const [guestSessionId] = useState<string>(() => {
     // Generate a unique session ID for this browser session
@@ -102,7 +117,7 @@ const App = () => {
     loadSavedTweets();
   }, [user]);  // This will run when user auth state changes
 
-  // Modify handleRemix to filter out invalid tweets
+  // Modify handleRemix to use conversation history for authenticated users
   const handleRemix = async () => {
     if (!inputText.trim()) return;
     
@@ -110,13 +125,42 @@ const App = () => {
     setError(null);
     
     try {
-      const generatedTweets = await tweetsFromPost(inputText, !!user);
+      let contextForConversation = '';
+      
+      // Only include conversation history for authenticated users with conversation mode enabled
+      if (user && conversationModeEnabled && conversationHistory.inputs.length > 0) {
+        // Format conversation history for Claude
+        const formattedHistory = conversationHistory.inputs.map((input, index) => {
+          const output = conversationHistory.outputs[index] || '';
+          return `User: ${input}\n\nAssistant: ${output}\n\n`;
+        }).join('');
+        
+        contextForConversation = formattedHistory;
+      }
+      
+      // Pass conversation history to tweetsFromPost if needed
+      const generatedTweets = await tweetsFromPost(
+        inputText, 
+        !!user, 
+        conversationModeEnabled && !!user ? contextForConversation : undefined
+      );
+      
+      // Update conversation history for authenticated users in conversation mode
+      if (user && conversationModeEnabled) {
+        setConversationHistory(prev => {
+          const newInputs = [...prev.inputs, inputText];
+          // Join all generated tweets as a single response for the history
+          const newOutputs = [...prev.outputs, generatedTweets.join('\n\n')];
+          return { inputs: newInputs, outputs: newOutputs };
+        });
+      }
       
       // Store ALL generated tweets before filtering, including metadata
       const allGeneratedTweetsData = {
         original_input: inputText,
         source_url: sourceUrl || null,
         timestamp: new Date().toISOString(),
+        is_conversation_mode: conversationModeEnabled && !!user,
         all_tweets: generatedTweets.map((content: string) => ({
           content,
           length: content.length,
@@ -146,7 +190,8 @@ const App = () => {
           saved_tweet_length: null,
           saved_tweet_token_cost: null,
           user_input: null,
-          all_generated_tweets: allGeneratedTweetsJSON // Add all generated tweets data
+          all_generated_tweets: allGeneratedTweetsJSON, // Add all generated tweets data
+          is_conversation_mode: conversationModeEnabled && !!user // Flag for conversation mode tweets
         } as Tweet));
       
       if (validTweets.length === 0) {
@@ -280,7 +325,8 @@ const App = () => {
         content: tweet?.content || "",  // Update with the saved tweet content
         saved_tweet_length: tweet?.content?.length || 0,
         saved_tweet_token_cost: tweet?.content ? Math.ceil(tweet.content.length / 4) : 0,
-        hashtags: hashtags
+        hashtags: hashtags,
+        is_conversation_mode: tweet.is_conversation_mode || false // Add conversation mode flag
       };
       
       let data;
@@ -756,66 +802,71 @@ const App = () => {
               </div>
             </a>
             {user ? (
-              <a
-                onClick={async () => {
-                  try {
-                    const signOutTime = new Date().toISOString();
-                    
-                    // Find last activity record
-                    const { data: lastActivity, error: fetchError } = await supabase
-                      .from('activity')
-                      .select('*')
-                      .eq('user_id', user?.id ?? undefined)
-                      .order('created_at', { ascending: false })
-                      .limit(1);
-
-                    if (fetchError) {
-                      console.error('Error fetching last activity:', fetchError);
-                    }
-
-                    // Update session timing if we found the record
-                    if (lastActivity?.[0]) {
-                      const signInTime = lastActivity[0].sign_in_time 
-                        ? new Date(lastActivity[0].sign_in_time) 
-                        : new Date();
-                      const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+              <div className="flex items-center space-x-4">
+                <a
+                  onClick={async () => {
+                    try {
+                      const signOutTime = new Date().toISOString();
                       
-                      const { error: updateError } = await supabase
+                      // Find last activity record
+                      const { data: lastActivity, error: fetchError } = await supabase
                         .from('activity')
-                        .update({
-                          sign_out_time: signOutTime,
-                          session_duration: Math.floor(duration / 1000)  // Duration in seconds
-                        })
-                        .eq('id', lastActivity[0].id);
+                        .select('*')
+                        .eq('user_id', user?.id ?? undefined)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
 
-                      if (updateError) {
-                        console.error('Error updating activity:', updateError);
-                      } else {
-                        console.log('Session ended:', {
-                          sign_out_time: signOutTime,
-                          duration: Math.floor(duration / 1000)
-                        });
+                      if (fetchError) {
+                        console.error('Error fetching last activity:', fetchError);
                       }
-                    }
 
-                    // Sign out and reset state
-                    await supabase.auth.signOut();
-                    setInputText('');
-                    setSourceUrl('');
-                    setTweets([]);
-                    setSavedTweets([]);
-                    // Reset session tweet IDs to ensure "Show Saved Tweets" button doesn't appear
-                    setSessionTweetIds([]);
-                    setError(null);
-                    setIsPopoutVisible(false);
-                  } catch (error) {
-                    console.error('Error during sign out:', error);
-                  }
-                }}
-                className="text-blue-500 hover:text-blue-600 cursor-pointer"
-              >
-                Sign Out
-              </a>
+                      // Update session timing if we found the record
+                      if (lastActivity?.[0]) {
+                        const signInTime = lastActivity[0].sign_in_time 
+                          ? new Date(lastActivity[0].sign_in_time) 
+                          : new Date();
+                        const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+                        
+                        const { error: updateError } = await supabase
+                          .from('activity')
+                          .update({
+                            sign_out_time: signOutTime,
+                            session_duration: Math.floor(duration / 1000)  // Duration in seconds
+                          })
+                          .eq('id', lastActivity[0].id);
+
+                        if (updateError) {
+                          console.error('Error updating activity:', updateError);
+                        } else {
+                          console.log('Session ended:', {
+                            sign_out_time: signOutTime,
+                            duration: Math.floor(duration / 1000)
+                          });
+                        }
+                      }
+
+                      // Sign out and reset state
+                      await supabase.auth.signOut();
+                      setInputText('');
+                      setSourceUrl('');
+                      setTweets([]);
+                      setSavedTweets([]);
+                      // Reset conversation mode and history
+                      setConversationModeEnabled(false);
+                      setConversationHistory({ inputs: [], outputs: [] });
+                      // Reset session tweet IDs to ensure "Show Saved Tweets" button doesn't appear
+                      setSessionTweetIds([]);
+                      setError(null);
+                      setIsPopoutVisible(false);
+                    } catch (error) {
+                      console.error('Error during sign out:', error);
+                    }
+                  }}
+                  className="text-blue-500 hover:text-blue-600 cursor-pointer"
+                >
+                  Sign Out
+                </a>
+              </div>
             ) : (
               <a
                 onClick={() => setShowAuth(true)}
@@ -828,6 +879,7 @@ const App = () => {
                   <div className="text-black">{'>'} Permanently save tweets</div>
                   <div className="text-black">{'>'} #Hashtag generation</div>
                   <div className="text-black">{'>'} More tweet options</div>
+                  <div className="text-black">{'>'} Conversation Mode</div>
                 </div>
               </a>
             )}
@@ -837,7 +889,7 @@ const App = () => {
         {getVisibleTweets().length > 0 && (
           <button
             onClick={() => setIsPopoutVisible(true)}
-            className="absolute top-4 right-24 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            className="absolute top-4 right-24 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
           >
             Show Saved Tweets
           </button>
@@ -864,6 +916,30 @@ const App = () => {
           <div className="text-red-500 text-sm mb-2">
             {error}
           </div>
+        )}
+
+        {/* Conversation Mode button - only for authenticated users, placed between URL and Generate button */}
+        {user && (
+          <button
+            onClick={() => {
+              const newMode = !conversationModeEnabled;
+              setConversationModeEnabled(newMode);
+              console.log(`Conversation mode ${newMode ? 'enabled' : 'disabled'} - Token limit: ${newMode ? '1200' : '800'}`);
+            }}
+            className={`w-full px-4 py-2 rounded font-semibold text-lg ${
+              conversationModeEnabled 
+                ? `${conversationModeColor} text-black-500 hover:bg-purple-300` 
+                : 'bg-purple-500 text-white hover:bg-purple-600'
+            }`}
+          >
+            {conversationModeEnabled ? (
+              <span>
+                Conversation Mode Enabled <span className="inline-block ml-1">✓</span>
+              </span>
+            ) : (
+              'Enable Conversation Mode'
+            )}
+          </button>
         )}
         
         {tweets.length === 0 ? (
