@@ -801,7 +801,7 @@ const App = () => {
 }}
               className="text-black hover:underline relative group"
             >
-              hitwtbk.app
+              hitwtbkapp
               <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 left-0 mt-1 w-48 text-sm z-10">
                 <div className="text-black font-bold">Get In Touch</div>
                 <div className="text-black">{'>'} Suggestions</div>
