@@ -940,7 +940,7 @@ const App = () => {
               {showConversationInfo && (
                 <div className="mt-1 p-3 bg-white border border-gray-200 rounded-md shadow-sm">
                   <p className="text-sm text-gray-700 mb-2">
-                    Conversation Mode enables the AI to remember your previous inputs and generated tweets, creating a continuous conversation.
+                    Conversation Mode enables me to remember your previous inputs and generated tweets, creating a continuous conversation.
                   </p>
                   <p className="text-sm text-gray-700">
                     This helps generate more contextually relevant tweets that build upon your earlier interactions.
