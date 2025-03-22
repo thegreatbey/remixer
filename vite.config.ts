@@ -11,5 +11,11 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    // Generate source maps for better debugging
+    sourcemap: true,
   }
 }) 
