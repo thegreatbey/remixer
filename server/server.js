@@ -14,6 +14,7 @@ const __dirname = dirname(__filename);
 // Load .env from the server directory
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+// Auto-deploy test comment - can be removed after verification
 // Debug logging
 console.log('Environment variables loaded:');
 console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
