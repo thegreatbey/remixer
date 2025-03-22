@@ -250,6 +250,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Catch-all route to serve index.html for client-side routing
+app.get('*', (req, res) => {
+  // Check if the file exists first
+  const indexPath = path.join(__dirname, '../dist/index.html');
+  if (!fs.existsSync(indexPath)) {
+    console.error('index.html not found in dist directory');
+    return res.status(404).send('Application not built properly');
+  }
+  res.sendFile(indexPath);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
