@@ -15,15 +15,14 @@ const __dirname = dirname(__filename);
 // Load .env from the server directory
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// Auto-deploy test comment - can be removed after verification
+const app = express();
+app.use(cors());
+app.use(express.json());
+
 // Debug logging
 console.log('Environment variables loaded:');
 console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
 console.log('SUPABASE_KEY exists:', !!process.env.SUPABASE_KEY);
-
-const app = express();
-app.use(cors());
-app.use(express.json());
 
 // Add error handling for Supabase initialization
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
