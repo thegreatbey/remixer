@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { tweetsFromPost } from './api/claude'
 import SavedTweets from './components/SavedTweets'
-import { supabase, isSupabaseConfigured } from './api/supabase'
+import { supabase, getAuthState } from './api/supabase'
 import { User } from '@supabase/supabase-js'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
@@ -56,7 +56,8 @@ const App = () => {
   const [showConversationInfo, setShowConversationInfo] = useState(false);
 
   // Add check for Supabase configuration
-  if (!isSupabaseConfigured()) {
+  const { isConfigured, error: configError } = getAuthState();
+  if (!isConfigured) {
     return (
       <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
         <div className="relative py-3 sm:max-w-xl sm:mx-auto">
@@ -66,7 +67,7 @@ const App = () => {
               <div className="divide-y divide-gray-200">
                 <div className="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
                   <p className="text-red-600 font-bold">Configuration Error</p>
-                  <p>The app is missing required environment variables.</p>
+                  <p>{configError || 'The app is missing required environment variables.'}</p>
                   <p>Please check your Supabase configuration in the deployment settings.</p>
                 </div>
               </div>
