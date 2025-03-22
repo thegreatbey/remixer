@@ -3,3 +3,4 @@ node_modules
 dist
 backups/tweets_backup.json
 .standard_operating_procedures
+.env.production
