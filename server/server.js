@@ -23,10 +23,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug: Log environment variables (remove in production)
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('SUPABASE_KEY:', process.env.SUPABASE_KEY);
-
 // Add error handling for Supabase initialization
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
   console.error('Missing Supabase credentials in environment variables');
@@ -246,5 +242,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log('Supabase URL:', process.env.SUPABASE_URL);
+  console.log('Supabase connection configured');
 });
