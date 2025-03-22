@@ -16,7 +16,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Debug logging
 console.log('Environment variables loaded:');
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
 console.log('SUPABASE_KEY exists:', !!process.env.SUPABASE_KEY);
 
 const app = express();
