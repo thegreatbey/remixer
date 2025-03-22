@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "description": "Example tweet generation rules - Replace with your actual rules in tweet_rules.json",
+  "auth_user_rules": {
+    "base": "Generate ${count} unique tweets with specific formatting.",
+    "token_limit": 800,
+    "constraints": {
+      "max_chars": 230,
+      "hashtags": {
+        "allowed": true,
+        "max_count": 3,
+        "usage": "only_if_valuable"
+      }
+    },
+    "examples": [
+      "Example tweet with #hashtag",
+      "Another example tweet"
+    ]
+  },
+  "guest_user_rules": {
+    "base": "Generate ${count} simple tweets.",
+    "token_limit": 300,
+    "constraints": {
+      "max_chars": 280,
+      "hashtags": {
+        "allowed": false
+      }
+    }
+  },
+  "conversation_rules": {
+    "context_handling": "Description of how conversation context should be maintained",
+    "conversation_token_limit": 1200
+  }
+} 

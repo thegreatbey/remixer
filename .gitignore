@@ -4,3 +4,6 @@ dist
 backups/tweets_backup.json
 .standard_operating_procedures
 .env.production
+# Protected content generation rules
+server/content_generation_rules/*.json
+!server/content_generation_rules/example.*.json

@@ -12,6 +12,105 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Validate rules structure
+const validateRules = (rules) => {
+  // Version check
+  if (!rules.version || !rules.version.match(/^\d+\.\d+$/)) {
+    throw new Error('Invalid or missing version number in rules');
+  }
+
+  const requiredFields = {
+    'auth_user_rules': ['base', 'constraints', 'token_limit'],
+    'guest_user_rules': ['base', 'constraints', 'token_limit'],
+    'conversation_rules': ['context_handling', 'conversation_token_limit']
+  };
+
+  // Check required fields
+  for (const [section, fields] of Object.entries(requiredFields)) {
+    if (!rules[section]) {
+      throw new Error(`Missing required section: ${section}`);
+    }
+    for (const field of fields) {
+      if (!rules[section][field]) {
+        throw new Error(`Missing required field ${field} in ${section}`);
+      }
+    }
+  }
+
+  // Validate constraints
+  for (const userType of ['auth_user_rules', 'guest_user_rules']) {
+    const constraints = rules[userType].constraints;
+    if (typeof constraints.max_chars !== 'number' || constraints.max_chars <= 0) {
+      throw new Error(`Invalid max_chars in ${userType}`);
+    }
+    if (constraints.hashtags) {
+      if (typeof constraints.hashtags.allowed !== 'boolean') {
+        throw new Error(`Invalid hashtags.allowed in ${userType}`);
+      }
+      if (constraints.hashtags.max_count && 
+          (typeof constraints.hashtags.max_count !== 'number' || 
+           constraints.hashtags.max_count < 0)) {
+        throw new Error(`Invalid hashtags.max_count in ${userType}`);
+      }
+    }
+
+    // Validate token limits
+    const tokenLimit = rules[userType].token_limit;
+    if (typeof tokenLimit !== 'number' || tokenLimit <= 0) {
+      throw new Error(`Invalid token_limit in ${userType}`);
+    }
+  }
+
+  // Validate conversation token limit
+  const convLimit = rules.conversation_rules.conversation_token_limit;
+  if (typeof convLimit !== 'number' || convLimit <= 0) {
+    throw new Error('Invalid conversation_token_limit');
+  }
+
+  return true;
+};
+
+// Load content generation rules
+const loadContentGenerationRules = () => {
+  try {
+    // Sanitize path
+    const rulesDir = path.join(__dirname, 'content_generation_rules');
+    const rulesPath = path.join(rulesDir, 'tweet_rules.json');
+    const examplePath = path.join(rulesDir, 'example.tweet_rules.json');
+
+    // Ensure paths don't escape the rules directory
+    if (!rulesPath.startsWith(rulesDir) || !examplePath.startsWith(rulesDir)) {
+      throw new Error('Invalid rules path');
+    }
+
+    let rules;
+    if (!fs.existsSync(rulesPath)) {
+      console.warn('Production rules not found, falling back to example rules');
+      rules = JSON.parse(fs.readFileSync(examplePath, 'utf8'));
+    } else {
+      rules = JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
+    }
+
+    // Validate rules structure
+    validateRules(rules);
+
+    // Log rules loading (without sensitive details)
+    console.log('Content generation rules loaded successfully:', {
+      hasAuthRules: !!rules.auth_user_rules,
+      hasGuestRules: !!rules.guest_user_rules,
+      hasConversationRules: !!rules.conversation_rules,
+      timestamp: new Date().toISOString()
+    });
+
+    return rules;
+  } catch (error) {
+    console.error('Error loading content generation rules:', error);
+    throw new Error('Failed to load content generation rules');
+  }
+};
+
+const contentRules = loadContentGenerationRules();
+
 // Load .env from the server directory
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -139,26 +238,56 @@ const parseTweetsFromResponse = (data, expectedTweetCount = 3) => {
 
 const generateTweets = async (text, showAuthFeatures, conversationHistory) => {
   try {
-    // Implement tiered token limit approach:
-    // - Non-auth users: 300 tokens
-    // - Auth users: 800 tokens
-    // - Auth users with conversation mode: 1200 tokens
-    const maxTokens = !showAuthFeatures ? 300 : 
-                      (showAuthFeatures && conversationHistory) ? 1200 : 800;
+    // Validate input
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid input text');
+    }
+    if (typeof showAuthFeatures !== 'boolean') {
+      throw new Error('Invalid authentication status');
+    }
+    if (conversationHistory && typeof conversationHistory !== 'string') {
+      throw new Error('Invalid conversation history format');
+    }
+
+    // Get the appropriate rules
+    const rules = showAuthFeatures ? contentRules.auth_user_rules : contentRules.guest_user_rules;
+    
+    // Use token limits from rules
+    const maxTokens = conversationHistory ? 
+      contentRules.conversation_rules.conversation_token_limit :
+      rules.token_limit;
     
     const tweetCount = showAuthFeatures ? 4 : 3; // Define tweet count based on auth status
     let retryCount = 0;
     const MAX_RETRIES = 3;
 
+    // Log generation attempt with rule version
+    console.log('Starting tweet generation:', {
+      inputLength: text.length,
+      isAuthUser: showAuthFeatures,
+      hasConversationHistory: !!conversationHistory,
+      expectedTweetCount: tweetCount,
+      rulesVersion: contentRules.version,
+      tokenLimit: maxTokens,
+      timestamp: new Date().toISOString()
+    });
+
     while (retryCount < MAX_RETRIES) {
-      // Build the system prompt based on auth status and conversation mode
-      let systemPrompt = showAuthFeatures ? 
-        `Generate exactly ${tweetCount} unique tweets. Each tweet should have: 1) Informative content (max 230 chars), 2) optionally followed by 0-3 relevant hashtags only if they add value to the tweet. Example formats: "AI is transforming healthcare with personalized treatment plans #AIHealth" or "New study shows remote work increases productivity by 22% #RemoteWork #Productivity #WorkCulture" or "Breaking: Tech startup launches revolutionary quantum computing platform". Each tweet on new line.` :
-        `Generate exactly ${tweetCount} unique tweets. Each tweet under 280 characters. Use complete sentences. No hashtags. Keep responses brief. Each tweet on new line.`;
+      // Validate rules exist for this user type
+      if (!rules || !rules.constraints) {
+        throw new Error(`Missing rules configuration for ${showAuthFeatures ? 'authenticated' : 'guest'} user`);
+      }
+
+      let systemPrompt = rules.base.replace('${count}', tweetCount);
+      
+      // Add examples if they exist in the rules
+      if (rules.examples && rules.examples.length > 0) {
+        systemPrompt += ` Example formats: ${rules.examples.map(ex => `"${ex}"`).join(' or ')}`;
+      }
         
-      // Add conversation context instruction if provided
-      if (conversationHistory) {
-        systemPrompt += ` You should take into account the conversation history provided when generating these tweets to maintain context and continuity.`;
+      // Add conversation context if provided
+      if (conversationHistory && contentRules.conversation_rules) {
+        systemPrompt += ` ${contentRules.conversation_rules.context_handling}`;
       }
 
       // Prepare user content based on conversation history
@@ -166,12 +295,12 @@ const generateTweets = async (text, showAuthFeatures, conversationHistory) => {
       if (conversationHistory && retryCount === 0) {
         userContent = `${conversationHistory}\nUser: ${text}\n\nNow generate tweets based on this conversation context and my latest message.`;
       } else if (retryCount > 0) {
-        userContent = `${text}\n\nPrevious attempt failed. Please generate exactly ${tweetCount} tweets, each under 280 characters. Be more concise.`;
+        userContent = `${text}\n\nPrevious attempt failed. Please generate exactly ${tweetCount} tweets, each under ${rules.constraints.max_chars} characters. Be more concise.`;
       }
 
       const requestBody = {
         model: 'claude-3-haiku-20240307',
-        max_tokens: maxTokens,  // Fresh token count for each attempt
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -179,11 +308,18 @@ const generateTweets = async (text, showAuthFeatures, conversationHistory) => {
         }]
       };
 
+      // Enhanced request logging
       console.log('Sending request to Claude API:', {
-        systemPrompt,
-        hasConversationHistory: !!conversationHistory,
-        tokenLimit: maxTokens,
-        userContentPreview: userContent.substring(0, 100) + (userContent.length > 100 ? '...' : '')
+        systemPromptLength: systemPrompt.length,
+        userContentLength: userContent.length,
+        retryCount,
+        maxTokens,
+        constraints: {
+          maxChars: rules.constraints.max_chars,
+          hashtagsAllowed: rules.constraints.hashtags?.allowed,
+          maxHashtags: rules.constraints.hashtags?.max_count
+        },
+        timestamp: new Date().toISOString()
       });
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -198,26 +334,61 @@ const generateTweets = async (text, showAuthFeatures, conversationHistory) => {
 
       const data = await response.json();
       
-      if (data.type === 'error' && data.error?.type === 'overloaded_error') {
-        throw new Error('Service is temporarily busy. Please try again in a few moments.');
+      if (data.type === 'error') {
+        if (data.error?.type === 'overloaded_error') {
+          throw new Error('Service is temporarily busy. Please try again in a few moments.');
+        }
+        throw new Error(`API Error: ${data.error?.message || 'Unknown error'}`);
       }
 
       // Pass the expected tweet count to the parser
       const tweets = parseTweetsFromResponse(data, tweetCount);
       
-      if (tweets.length === tweetCount && tweets.every(tweet => tweet.length <= 280)) {
+      // Validate tweets against our rules
+      const validTweets = tweets.filter(tweet => {
+        const maxChars = rules.constraints.max_chars;
+        const hasValidLength = tweet.length <= maxChars;
+        
+        // Check hashtag rules if they exist
+        if (rules.constraints.hashtags) {
+          const hashtags = tweet.match(/#\w+/g) || [];
+          if (!rules.constraints.hashtags.allowed && hashtags.length > 0) {
+            return false;
+          }
+          if (rules.constraints.hashtags.max_count && hashtags.length > rules.constraints.hashtags.max_count) {
+            return false;
+          }
+        }
+        
+        return hasValidLength;
+      });
+      
+      // Log validation results
+      console.log('Tweet validation results:', {
+        totalTweets: tweets.length,
+        validTweets: validTweets.length,
+        invalidTweets: tweets.length - validTweets.length,
+        retryCount,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (validTweets.length === tweetCount) {
         console.log(`Successfully generated ${tweetCount} valid tweets`);
-        return tweets;
+        return validTweets;
       }
 
       console.log(`Retry attempt ${retryCount + 1} of ${MAX_RETRIES}`);
-      console.log('Current tweets:', tweets.map(t => ({ length: t.length, content: t })));
+      console.log('Current tweets:', validTweets.map(t => ({ length: t.length, content: t })));
       retryCount++;
     }
     
     throw new Error('Failed to generate valid tweets after multiple attempts. Please try again.');
   } catch (error) {
-    console.error('Error generating tweets:', error);
+    console.error('Error generating tweets:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 };
