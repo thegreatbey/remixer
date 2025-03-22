@@ -16,13 +16,23 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-app.use(cors());
+
+// Configure CORS to accept requests from Netlify and localhost
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || ['http://localhost:5173', 'http://localhost:4173'],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Debug logging
 console.log('Environment variables loaded:');
 console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
 console.log('SUPABASE_KEY exists:', !!process.env.SUPABASE_KEY);
+console.log('CORS configured for:', corsOptions.origin);
 
 // Add error handling for Supabase initialization
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
