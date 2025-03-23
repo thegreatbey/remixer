@@ -15,7 +15,10 @@ A simple web application that lets you remix and transform text content using AI
 3. Vercel for deployment
 4. Claude API for content transformation
 
-
+## Version Control
+- Uses Git for version control
+- Checkpoints (commits) save local changes
+- Changes can be pushed to remote repository
 
 ## Future Enhancements
 1. Additional AI API integrations
