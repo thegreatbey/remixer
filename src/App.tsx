@@ -54,6 +54,9 @@ const App = () => {
   const [captchaCompleted, setCaptchaCompleted] = useState<boolean>(false);
   // Add conversation mode explanation state
   const [showConversationInfo, setShowConversationInfo] = useState(false);
+  // Add state for TOS and Privacy Policy panels
+  const [showTOS, setShowTOS] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   // Add check for Supabase configuration
   const { isConfigured, error: configError } = getAuthState();
@@ -1138,6 +1141,127 @@ const App = () => {
               }}
               providers={['github', 'google', 'azure']}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Footer with TOS and Privacy Policy */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t py-4 z-40">
+        <div className="max-w-4xl mx-auto px-4 text-center text-sm text-gray-600">
+          <div className="flex items-center justify-center space-x-4">
+            <button
+              onClick={() => setShowTOS(true)}
+              className="hover:text-black hover:underline"
+            >
+              TOS
+            </button>
+            <button
+              onClick={() => setShowPrivacy(true)}
+              className="hover:text-black hover:underline"
+            >
+              Privacy Policy
+            </button>
+            <span>© TWTBK.APP /TWTBK.COM 2025-</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* TOS Panel */}
+      {showTOS && (
+        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white border rounded-lg shadow-lg z-50">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Terms of Service</h3>
+            <button
+              onClick={() => setShowTOS(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-4 text-sm text-gray-600">
+              <p>By using this application, you agree to the following:</p>
+              <div>
+                <p className="font-semibold">Usage</p>
+                <p>This app is provided "as is" without warranties. Use at your own discretion.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Content</p>
+                <p>We do not guarantee the accuracy of responses and are not responsible for any decisions based on them.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Data</p>
+                <p>You agree not to misuse or exploit the app in ways that violate laws or ethical guidelines.</p>
+              </div>
+              <div>
+                <p className="font-semibold">No Liability</p>
+                <p>We are not responsible for any outcomes, decisions, or actions taken based on the app's responses.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Acceptable Use</p>
+                <p>You agree not to use this app for illegal, harmful, or unethical purposes. Abuse may result in access restrictions.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Changes</p>
+                <p>These terms may be updated at any time. Continued use implies acceptance of changes.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Policy Panel */}
+      {showPrivacy && (
+        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white border rounded-lg shadow-lg z-50">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Privacy Policy</h3>
+            <button
+              onClick={() => setShowPrivacy(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-4 text-sm text-gray-600">
+              <div>
+                <p className="font-semibold">Data Collection</p>
+                <p>We may collect input text and usage data to improve performance. We do not store personal information.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Third-Party Services</p>
+                <p>Our app may interact with external APIs, but we do not share identifiable user data.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Cookies</p>
+                <p>We may use cookies or local storage for app functionality.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Your Rights</p>
+                <p>You can stop using the app at any time. Contact us for data inquiries.</p>
+              </div>
+              <div>
+                <p className="font-semibold">What We Collect</p>
+                <p>We may collect basic usage data, such as queries or interactions, to improve app functionality. However, we do not collect personally identifiable information.</p>
+              </div>
+              <div>
+                <p className="font-semibold">How We Use Your Data</p>
+                <p>Any collected data is used solely for app improvements and analytics. We do not sell, rent, or trade your information with third parties.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Third-Party Services</p>
+                <p>Our app may interact with external APIs, but no personal user data is shared with these services.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Cookies & Local Storage</p>
+                <p>We may use cookies or local storage for app functionality, but not for tracking purposes.</p>
+              </div>
+              <div>
+                <p className="font-semibold">Your Choices</p>
+                <p>You can stop using the app at any time. If you have concerns about data usage, you can contact us.</p>
+              </div>
+              <p className="mt-4">By continuing, you agree to these terms.</p>
+            </div>
           </div>
         </div>
       )}
