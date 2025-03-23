@@ -1146,7 +1146,7 @@ const App = () => {
       )}
 
       {/* Footer with TOS and Privacy Policy */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t py-4 z-40">
+      <footer className="mt-8 sm:mt-0 sm:fixed sm:bottom-0 sm:left-0 sm:right-0 border-t py-4 sm:bg-white">
         <div className="max-w-4xl mx-auto px-4 text-center text-sm text-gray-600">
           <div className="flex items-center justify-center space-x-4">
             <button
