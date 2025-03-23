@@ -57,6 +57,8 @@ const App = () => {
   // Add state for TOS and Privacy Policy panels
   const [showTOS, setShowTOS] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  // Add success message state
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Add check for Supabase configuration
   const { isConfigured, error: configError } = getAuthState();
@@ -189,13 +191,25 @@ const App = () => {
         source_url: sourceUrl || null,
         timestamp: new Date().toISOString(),
         is_conversation_mode: conversationModeEnabled && !!user,
-        all_tweets: generatedTweets.map((content: string) => ({
-          content,
-          length: content.length,
-          characters_remaining: 280 - content.length - (sourceUrl ? 25 : 0),
-          hashtags: extractHashtags(content),
-          is_valid: content.length <= 280
-        }))
+        all_tweets: generatedTweets.map((content: string) => {
+          let urlLength = 0;
+          if (sourceUrl) {
+            if (sourceUrl.startsWith('http://')) {
+              urlLength = 23; // HTTP URLs count as 23 characters
+            } else if (sourceUrl.startsWith('https://')) {
+              urlLength = 25; // HTTPS URLs count as 25 characters
+            } else {
+              urlLength = 23; // Default to HTTP length if protocol is not specified
+            }
+          }
+          return {
+            content,
+            length: content.length,
+            characters_remaining: 280 - content.length - urlLength,
+            hashtags: extractHashtags(content),
+            is_valid: content.length <= 280
+          };
+        })
       };
       
       // Convert to JSON string for storage
@@ -445,6 +459,7 @@ const App = () => {
         console.log('Calling trackActivity with save event...');
         await trackActivity('save', allGeneratedTweets || undefined);
         console.log('trackActivity completed');
+        setSuccessMessage('Tweet saved successfully!');
       } else {
         console.warn('No data returned from tweet update/insert operation');
       }
@@ -503,7 +518,17 @@ const App = () => {
 
   // Add this helper function
   const getRemainingCharacters = (content: string): number => {
-    const urlLength = sourceUrl ? 25 : 0;  // URL counts as 25 if present
+    let urlLength = 0;
+    if (sourceUrl) {
+      // Check if URL starts with http:// or https://
+      if (sourceUrl.startsWith('http://')) {
+        urlLength = 23; // HTTP URLs count as 23 characters
+      } else if (sourceUrl.startsWith('https://')) {
+        urlLength = 25; // HTTPS URLs count as 25 characters
+      } else {
+        urlLength = 23; // Default to HTTP length if protocol is not specified
+      }
+    }
     return 280 - content.length - urlLength;
   };
 
@@ -813,458 +838,514 @@ const App = () => {
     }
   };
 
+  // Add loading animation component
+  const LoadingAnimation = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-white rounded-lg p-3 sm:p-6 shadow-xl max-w-sm w-full mx-4 animate-slide-in">
+        <div className="flex flex-col items-center space-y-2 sm:space-y-4">
+          <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-blue-500"></div>
+          <p className="text-xs sm:text-base text-gray-700">Generating tweets{loadingDots}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Add error notification component
+  const ErrorNotification = ({ message }: { message: string }) => (
+    <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded shadow-lg z-50 max-w-sm w-full mx-4 animate-slide-in">
+      <div className="flex items-center">
+        <div className="py-0.5 sm:py-1">
+          <p className="text-xs sm:text-sm">{message}</p>
+        </div>
+        <button
+          onClick={() => setError(null)}
+          className="ml-auto pl-2 sm:pl-3 text-red-700 hover:text-red-900 transition-colors duration-200"
+          aria-label="Close error message"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+
+  // Add success notification component
+  const SuccessNotification = ({ message }: { message: string }) => (
+    <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-2 sm:py-3 rounded shadow-lg z-50 max-w-sm w-full mx-4 animate-slide-in">
+      <div className="flex items-center">
+        <div className="py-0.5 sm:py-1">
+          <p className="text-xs sm:text-sm">{message}</p>
+        </div>
+        <button
+          onClick={() => setSuccessMessage(null)}
+          className="ml-auto pl-2 sm:pl-3 text-green-700 hover:text-green-900 transition-colors duration-200"
+          aria-label="Close success message"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-8 pt-8 sm:pt-16">
-      <div className="max-w-4xl mx-auto p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold ml-[-16px]">Tweet Reply Generator</h1>
-          <TrendingHashtags />
-          {/* Unified header section for both authenticated and guest users */}
-          <div className="flex items-center space-x-9">
-          <a href="#" onClick={(e) => {
-    e.preventDefault();
-    window.location.href = 'mailto:' + 'hi' + '@' + 'twtbk.app';
-}}
-              className="text-black hover:underline relative group"
-            >
-              hitwtbkapp
-              <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 left-0 mt-1 w-48 text-sm z-10">
-                <div className="text-black font-bold">Get In Touch</div>
-                <div className="text-black">{'>'} Suggestions</div>
-                <div className="text-black">{'>'} Improvements</div>
-                <div className="text-black">{'>'} Questions</div>
-                <div className="text-black">{'>'} Just say hi!</div>
-              </div>
-            </a>
-            {user ? (
-              <div className="flex items-center space-x-4">
-                <a
-                  onClick={async () => {
-                    try {
-                      const signOutTime = new Date().toISOString();
-                      
-                      // Find last activity record
-                      const { data: lastActivity, error: fetchError } = await supabase
-                        .from('activity')
-                        .select('*')
-                        .eq('user_id', user?.id ?? undefined)
-                        .order('created_at', { ascending: false })
-                        .limit(1);
-
-                      if (fetchError) {
-                        console.error('Error fetching last activity:', fetchError);
-                      }
-
-                      // Update session timing if we found the record
-                      if (lastActivity?.[0]) {
-                        const signInTime = lastActivity[0].sign_in_time 
-                          ? new Date(lastActivity[0].sign_in_time) 
-                          : new Date();
-                        const duration = new Date(signOutTime).getTime() - signInTime.getTime();
-                        
-                        const { error: updateError } = await supabase
-                          .from('activity')
-                          .update({
-                            sign_out_time: signOutTime,
-                            session_duration: Math.floor(duration / 1000)  // Duration in seconds
-                          })
-                          .eq('id', lastActivity[0].id);
-
-                        if (updateError) {
-                          console.error('Error updating activity:', updateError);
-                        } else {
-                          console.log('Session ended:', {
-                            sign_out_time: signOutTime,
-                            duration: Math.floor(duration / 1000)
-                          });
-                        }
-                      }
-
-                      // Sign out and reset state
-                      await supabase.auth.signOut();
-                      setInputText('');
-                      setSourceUrl('');
-                      setTweets([]);
-                      setSavedTweets([]);
-                      // Reset conversation mode and history
-                      setConversationModeEnabled(false);
-                      setConversationHistory({ inputs: [], outputs: [] });
-                      // Reset session tweet IDs to ensure "Show Saved Tweets" button doesn't appear
-                      setSessionTweetIds([]);
-                      setError(null);
-                      setIsPopoutVisible(false);
-                    } catch (error) {
-                      console.error('Error during sign out:', error);
-                    }
-                  }}
-                  className="text-blue-500 hover:text-blue-600 cursor-pointer"
-                >
-                  Sign Out
-                </a>
-              </div>
-            ) : (
-              <a
-                onClick={() => setShowAuth(true)}
-                className="text-blue-500 hover:text-black-600 cursor-pointer relative group"
-                title="Account Advantages"
+    <div className={`min-h-screen ${conversationModeEnabled ? conversationModeColor : 'bg-gray-100'}`}>
+      {isLoading && <LoadingAnimation />}
+      {error && <ErrorNotification message={error} />}
+      {successMessage && <SuccessNotification message={successMessage} />}
+      <div className="min-h-screen bg-gray-100 p-2 sm:p-8 pt-4 sm:pt-16">
+        <div className="max-w-4xl mx-auto p-2 sm:p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+            <h1 className="text-2xl sm:text-3xl font-bold">Tweet Reply Generator</h1>
+            <TrendingHashtags />
+            {/* Unified header section for both authenticated and guest users */}
+            <div className="flex items-center space-x-4 sm:space-x-9">
+              <a href="#" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = 'mailto:' + 'hi' + '@' + 'twtbk.app';
+              }}
+                className="text-black hover:underline relative group"
               >
-                Sign In
-                <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 right-0 mt-1 w-48 text-sm z-10">
-                  <div className="font-semibold mb-1 text-black">Account Advantages</div>
-                  <div className="text-black">{'>'} Permanently save tweets</div>
-                  <div className="text-black">{'>'} #Hashtag generation</div>
-                  <div className="text-black">{'>'} More tweet options</div>
-                  <div className="text-black">{'>'} Conversation Mode</div>
+                hitwtbkapp
+                <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 left-0 mt-1 w-48 text-sm z-10">
+                  <div className="text-black font-bold">Get In Touch</div>
+                  <div className="text-black">{'>'} Suggestions</div>
+                  <div className="text-black">{'>'} Improvements</div>
+                  <div className="text-black">{'>'} Questions</div>
+                  <div className="text-black">{'>'} Just say hi!</div>
                 </div>
               </a>
-            )}
-          </div>
-        </div>
-        {/* Show Saved Tweets button - only when there are tweets for the current user/session */}
-        {getVisibleTweets().length > 0 && (
-          <button
-            onClick={() => setIsPopoutVisible(true)}
-            className="absolute top-4 right-24 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            Show Saved Tweets
-          </button>
-        )}
-      </div>
-      <div className="space-y-2 max-w-4xl mx-auto">
-        <textarea
-          className="w-full h-48 p-4 border rounded resize-none text-lg"
-          placeholder="Type/paste your text here. I'll generate your tweets."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-        />
-        
-        {/* Source URL input - optional */}
-        <input
-          type="text"
-          className="w-full p-2 border rounded text-lg"
-          placeholder="Optional: Add source URL"
-          value={sourceUrl}
-          onChange={(e) => setSourceUrl(e.target.value)}
-        />
-        
-        {error && (
-          <div className="text-red-500 text-sm mb-2">
-            {error}
-          </div>
-        )}
+              {user ? (
+                <div className="flex items-center space-x-4">
+                  <a
+                    onClick={async () => {
+                      try {
+                        const signOutTime = new Date().toISOString();
+                        
+                        // Find last activity record
+                        const { data: lastActivity, error: fetchError } = await supabase
+                          .from('activity')
+                          .select('*')
+                          .eq('user_id', user?.id ?? undefined)
+                          .order('created_at', { ascending: false })
+                          .limit(1);
 
-        {/* Conversation Mode explanation and button - only for authenticated users */}
-        {user && (
-          <>
-            <div className="mb-1 relative">
-              <span 
-                onClick={() => setShowConversationInfo(prevState => !prevState)} 
-                className="cursor-pointer text-black hover:text-purple-800 hover:underline inline-block"
-              >
-                What is Conversation Mode?
-              </span>
-              {showConversationInfo && (
-                <div className="mt-1 p-3 bg-white border border-gray-200 rounded-md shadow-sm">
-                  <p className="text-sm text-gray-700 mb-2">
-                    Conversation Mode enables me to remember your previous inputs and generated tweets, creating a continuous conversation.
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    This helps generate more contextually relevant tweets that build upon your earlier interactions.
-                  </p>
+                        if (fetchError) {
+                          console.error('Error fetching last activity:', fetchError);
+                        }
+
+                        // Update session timing if we found the record
+                        if (lastActivity?.[0]) {
+                          const signInTime = lastActivity[0].sign_in_time 
+                            ? new Date(lastActivity[0].sign_in_time) 
+                            : new Date();
+                          const duration = new Date(signOutTime).getTime() - signInTime.getTime();
+                          
+                          const { error: updateError } = await supabase
+                            .from('activity')
+                            .update({
+                              sign_out_time: signOutTime,
+                              session_duration: Math.floor(duration / 1000)  // Duration in seconds
+                            })
+                            .eq('id', lastActivity[0].id);
+
+                          if (updateError) {
+                            console.error('Error updating activity:', updateError);
+                          } else {
+                            console.log('Session ended:', {
+                              sign_out_time: signOutTime,
+                              duration: Math.floor(duration / 1000)
+                            });
+                          }
+                        }
+
+                        // Sign out and reset state
+                        await supabase.auth.signOut();
+                        setInputText('');
+                        setSourceUrl('');
+                        setTweets([]);
+                        setSavedTweets([]);
+                        // Reset conversation mode and history
+                        setConversationModeEnabled(false);
+                        setConversationHistory({ inputs: [], outputs: [] });
+                        // Reset session tweet IDs to ensure "Show Saved Tweets" button doesn't appear
+                        setSessionTweetIds([]);
+                        setError(null);
+                        setIsPopoutVisible(false);
+                      } catch (error) {
+                        console.error('Error during sign out:', error);
+                      }
+                    }}
+                    className="text-blue-500 hover:text-blue-600 cursor-pointer"
+                  >
+                    Sign Out
+                  </a>
                 </div>
+              ) : (
+                <a
+                  onClick={() => setShowAuth(true)}
+                  className="text-blue-500 hover:text-black-600 cursor-pointer relative group"
+                  title="Account Advantages"
+                >
+                  Sign In
+                  <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 right-0 mt-1 w-48 text-sm z-10">
+                    <div className="font-semibold mb-1 text-black">Account Advantages</div>
+                    <div className="text-black">{'>'} Permanently save tweets</div>
+                    <div className="text-black">{'>'} #Hashtag generation</div>
+                    <div className="text-black">{'>'} More tweet options</div>
+                    <div className="text-black">{'>'} Conversation Mode</div>
+                  </div>
+                </a>
               )}
             </div>
-            {conversationModeEnabled ? (
-              <div className="grid grid-cols-2 gap-4">
+          </div>
+          {/* Show Saved Tweets button - only when there are tweets for the current user/session */}
+          {getVisibleTweets().length > 0 && (
+            <button
+              onClick={() => setIsPopoutVisible(true)}
+              className="fixed sm:absolute top-2 sm:top-4 right-2 sm:right-24 bg-green-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded hover:bg-green-600 text-sm sm:text-base"
+            >
+              Show Saved Tweets
+            </button>
+          )}
+        </div>
+        <div className="space-y-2 max-w-4xl mx-auto">
+          <textarea
+            className="w-full h-32 sm:h-48 p-3 sm:p-4 border rounded resize-none text-base sm:text-lg"
+            placeholder="Type/paste your text here. I'll generate your tweets."
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+          />
+          
+          {/* Source URL input - optional */}
+          <input
+            type="text"
+            className="w-full p-2 border rounded text-base sm:text-lg"
+            placeholder="Optional: Add source URL"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+          />
+          
+          {error && (
+            <div className="text-red-500 text-xs sm:text-sm mb-2">
+              {error}
+            </div>
+          )}
+
+          {/* Conversation Mode explanation and button - only for authenticated users */}
+          {user && (
+            <>
+              <div className="mb-1 relative">
+                <span 
+                  onClick={() => setShowConversationInfo(prevState => !prevState)} 
+                  className="cursor-pointer text-black hover:text-purple-800 hover:underline inline-block text-sm sm:text-base"
+                >
+                  What is Conversation Mode?
+                </span>
+                {showConversationInfo && (
+                  <div className="mt-1 p-2 sm:p-3 bg-white border border-gray-200 rounded-md shadow-sm text-xs sm:text-sm">
+                    <p className="text-gray-700 mb-2">
+                      Conversation Mode enables me to remember your previous inputs and generated tweets, creating a continuous conversation.
+                    </p>
+                    <p className="text-gray-700">
+                      This helps generate more contextually relevant tweets that build upon your earlier interactions.
+                    </p>
+                  </div>
+                )}
+              </div>
+              {conversationModeEnabled ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                  <button
+                    onClick={() => {
+                      setConversationModeEnabled(false);
+                      setConversationHistory({ inputs: [], outputs: [] });
+                    }}
+                    className={`w-full px-4 py-2 rounded font-semibold text-base sm:text-lg ${conversationModeColor} text-black-500 hover:bg-purple-300`}
+                  >
+                    <span>
+                      Conversation Mode Enabled <span className="inline-block ml-1">✓</span>
+                    </span>
+                  </button>
+                  
+                  <button
+                    onClick={resetConversation}
+                    className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-base sm:text-lg font-medium"
+                  >
+                    Reset Conversation
+                  </button>
+                </div>
+              ) : (
                 <button
                   onClick={() => {
-                    setConversationModeEnabled(false);
-                    setConversationHistory({ inputs: [], outputs: [] });
+                    setConversationModeEnabled(true);
+                    console.log('Conversation mode enabled - Token limit: 1200');
                   }}
-                  className={`w-full px-4 py-2 rounded font-semibold text-lg ${conversationModeColor} text-black-500 hover:bg-purple-300`}
+                  className="w-full px-4 py-2 rounded font-semibold text-base sm:text-lg bg-purple-500 text-white hover:bg-purple-600"
                 >
-                  <span>
-                    Conversation Mode Enabled <span className="inline-block ml-1">✓</span>
-                  </span>
+                  Enable Conversation Mode
                 </button>
-                
-                <button
-                  onClick={resetConversation}
-                  className="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 text-lg font-medium"
-                >
-                  Reset Conversation
-                </button>
-              </div>
-            ) : (
+              )}
+            </>
+          )}
+          
+          {tweets.length === 0 ? (
+            /* Conditionally show CAPTCHA or Generate Button based on user auth status and CAPTCHA completion */
+            user || captchaCompleted ? (
               <button
-                onClick={() => {
-                  setConversationModeEnabled(true);
-                  console.log('Conversation mode enabled - Token limit: 1200');
-                }}
-                className="w-full px-4 py-2 rounded font-semibold text-lg bg-purple-500 text-white hover:bg-purple-600"
+                onClick={handleRemix}
+                disabled={isLoading || !inputText.trim()}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-base sm:text-lg min-w-[150px]"
               >
-                Enable Conversation Mode
+                {isLoading ? (
+                  <span className="inline-block min-w-[80px]">
+                    Generating{loadingDots}
+                  </span>
+                ) : (
+                  'Generate Tweets'
+                )}
               </button>
-            )}
-          </>
-        )}
-        
-        {tweets.length === 0 ? (
-          /* Conditionally show CAPTCHA or Generate Button based on user auth status and CAPTCHA completion */
-          user || captchaCompleted ? (
-            <button
-              onClick={handleRemix}
-              disabled={isLoading || !inputText.trim()}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg min-w-[150px]"
-            >
-              {isLoading ? (
-                <span className="inline-block min-w-[80px]">
-                  Generating{loadingDots}
-                </span>
-              ) : (
-                'Generate Tweets'
-              )}
-            </button>
+            ) : (
+              <WordCaptcha onSuccess={() => setCaptchaCompleted(true)} />
+            )
           ) : (
-            <WordCaptcha onSuccess={() => setCaptchaCompleted(true)} />
-          )
-        ) : (
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={handleRemix}
-              disabled={isLoading || !inputText.trim()}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg min-w-[150px]"
-            >
-              {isLoading ? (
-                <span className="inline-block min-w-[80px]">
-                  Generating{loadingDots}
-                </span>
-              ) : (
-                'Generate Tweets'
-              )}
-            </button>
-
-            <button
-              onClick={handleClear}
-              className="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 text-lg font-medium"
-            >
-              Clear Everything
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Generated tweets section */}
-      {tweets.length > 0 && (
-        <div className="mt-8 max-w-4xl mx-auto">
-          <h2 className="text-xl font-bold mb-4">Generated Tweets</h2>
-          <SavedTweets 
-            tweets={tweets} 
-            onSaveTweet={handleSaveTweet}
-            onTweetThis={handleTweetThis}
-            isSavedList={false}
-            getRemainingCharacters={getRemainingCharacters}
-            sourceUrl={sourceUrl}
-          />
-        </div>
-      )}
-
-      {/* Saved tweets sidebar - only show when there are tweets for the current user/session */}
-      {getVisibleTweets().length > 0 && (
-        <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
-          isPopoutVisible ? 'translate-x-0' : 'translate-x-full'
-        }`}>
-          <div className="p-4 border-b">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">Saved Tweets</h2>
-              <button 
-                onClick={() => {
-                  setIsPopoutVisible(false);
-                }}
-                className="text-gray-500 hover:text-gray-700"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+              <button
+                onClick={handleRemix}
+                disabled={isLoading || !inputText.trim()}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-base sm:text-lg min-w-[150px]"
               >
-                Collapse
+                {isLoading ? (
+                  <span className="inline-block min-w-[80px]">
+                    Generating{loadingDots}
+                  </span>
+                ) : (
+                  'Generate Tweets'
+                )}
+              </button>
+
+              <button
+                onClick={handleClear}
+                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-base sm:text-lg font-medium"
+              >
+                Clear
               </button>
             </div>
-          </div>
-          <div className="p-4 overflow-y-auto h-[calc(100%-73px)]">
+          )}
+        </div>
+
+        {/* Generated tweets section */}
+        {tweets.length > 0 && (
+          <div className="mt-6 sm:mt-8 max-w-4xl mx-auto px-2 sm:px-4">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Generated Tweets</h2>
             <SavedTweets 
-              tweets={getVisibleTweets()}
-              onDeleteTweet={handleDeleteTweet}
+              tweets={tweets} 
+              onSaveTweet={handleSaveTweet}
               onTweetThis={handleTweetThis}
-              isSavedList={true}
+              isSavedList={false}
               getRemainingCharacters={getRemainingCharacters}
               sourceUrl={sourceUrl}
             />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Auth popup with dark overlay */}
-      {showAuth && (
-        <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-24 z-50">
-          <div className="relative">
-            <button 
-              onClick={() => setShowAuth(false)}
-              className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-gray-100"
-            >
-              ×
-            </button>
-            <Auth 
-              supabaseClient={supabase}
-              appearance={{
-                theme: ThemeSupa,
-                variables: {
-                  default: {
-                    colors: {
-                      brand: '#3B82F6',
-                      brandAccent: '#2563EB',
+        {/* Saved tweets sidebar - only show when there are tweets for the current user/session */}
+        {getVisibleTweets().length > 0 && (
+          <div className={`fixed top-0 right-0 h-full w-full sm:w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
+            isPopoutVisible ? 'translate-x-0' : 'translate-x-full'
+          }`}>
+            <div className="p-3 sm:p-4 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg sm:text-xl font-bold">Saved Tweets</h2>
+                <button 
+                  onClick={() => {
+                    setIsPopoutVisible(false);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 p-1 sm:p-2"
+                  aria-label="Close saved tweets"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="p-3 sm:p-4 overflow-y-auto h-[calc(100%-65px)]">
+              <SavedTweets 
+                tweets={getVisibleTweets()}
+                onDeleteTweet={handleDeleteTweet}
+                onTweetThis={handleTweetThis}
+                isSavedList={true}
+                getRemainingCharacters={getRemainingCharacters}
+                sourceUrl={sourceUrl}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Auth popup with dark overlay */}
+        {showAuth && (
+          <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-24 z-50">
+            <div className="relative">
+              <button 
+                onClick={() => setShowAuth(false)}
+                className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-gray-100"
+              >
+                ×
+              </button>
+              <Auth 
+                supabaseClient={supabase}
+                appearance={{
+                  theme: ThemeSupa,
+                  variables: {
+                    default: {
+                      colors: {
+                        brand: '#3B82F6',
+                        brandAccent: '#2563EB',
+                      }
                     }
+                  },
+                  style: {
+                    container: {
+                      backgroundColor: 'white',
+                      padding: '0.5rem',
+                      borderRadius: '0.5rem',
+                    },
+                    button: {
+                      backgroundColor: 'var(--colors-brand)',
+                      color: 'white',
+                      transition: 'background-color 0.2s',
+                    },
+                    input: {
+                      backgroundColor: 'white',
+                      color: 'black',
+                    },
                   }
-                },
-                style: {
-                  container: {
-                    backgroundColor: 'white',
-                    padding: '0.5rem',
-                    borderRadius: '0.5rem',
-                  },
-                  button: {
-                    backgroundColor: 'var(--colors-brand)',
-                    color: 'white',
-                    transition: 'background-color 0.2s',
-                  },
-                  input: {
-                    backgroundColor: 'white',
-                    color: 'black',
-                  },
-                }
-              }}
-              providers={['github', 'google', 'azure']}
-            />
+                }}
+                providers={['github', 'google', 'azure']}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Footer with TOS and Privacy Policy */}
-      <footer className="mt-8 sm:mt-0 sm:fixed sm:bottom-0 sm:left-0 sm:right-0 border-t py-4 sm:bg-white">
-        <div className="max-w-4xl mx-auto px-4 text-center text-sm text-gray-600">
-          <div className="flex items-center justify-center space-x-4">
-            <button
-              onClick={() => setShowTOS(true)}
-              className="hover:text-black hover:underline"
-            >
-              TOS
-            </button>
-            <button
-              onClick={() => setShowPrivacy(true)}
-              className="hover:text-black hover:underline"
-            >
-              Privacy Policy
-            </button>
-            <span>© TWTBK.APP /TWTBK.COM 2025-</span>
+        {/* Footer with TOS and Privacy Policy */}
+        <footer className="mt-8 sm:mt-0 sm:fixed sm:bottom-0 sm:left-0 sm:right-0 border-t py-3 sm:py-4 bg-white">
+          <div className="max-w-4xl mx-auto px-4 text-center text-xs sm:text-sm text-gray-600">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+              <button
+                onClick={() => setShowTOS(true)}
+                className="hover:text-black hover:underline"
+              >
+                TOS
+              </button>
+              <button
+                onClick={() => setShowPrivacy(true)}
+                className="hover:text-black hover:underline"
+              >
+                Privacy Policy
+              </button>
+              <span>© TWTBK.APP /TWTBK.COM 2025-</span>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
 
-      {/* TOS Panel */}
-      {showTOS && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white border rounded-lg shadow-lg z-50">
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Terms of Service</h3>
-            <button
-              onClick={() => setShowTOS(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ×
-            </button>
-          </div>
-          <div className="p-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-4 text-sm text-gray-600">
-              <p>By using this application, you agree to the following:</p>
-              <div>
-                <p className="font-semibold">Usage</p>
-                <p>This app is provided "as is" without warranties. Use at your own discretion.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Content</p>
-                <p>We do not guarantee the accuracy of responses and are not responsible for any decisions based on them.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Data</p>
-                <p>You agree not to misuse or exploit the app in ways that violate laws or ethical guidelines.</p>
-              </div>
-              <div>
-                <p className="font-semibold">No Liability</p>
-                <p>We are not responsible for any outcomes, decisions, or actions taken based on the app's responses.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Acceptable Use</p>
-                <p>You agree not to use this app for illegal, harmful, or unethical purposes. Abuse may result in access restrictions.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Changes</p>
-                <p>These terms may be updated at any time. Continued use implies acceptance of changes.</p>
+        {/* TOS Panel */}
+        {showTOS && (
+          <div className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:left-1/2 sm:transform sm:-translate-x-1/2 w-full sm:w-auto sm:max-w-2xl bg-white border rounded-lg shadow-lg z-50 m-4 sm:m-0 animate-slide-in">
+            <div className="p-2 sm:p-4 border-b flex justify-between items-center">
+              <h3 className="text-sm sm:text-lg font-semibold">Terms of Service</h3>
+              <button
+                onClick={() => setShowTOS(false)}
+                className="text-gray-500 hover:text-gray-700 p-1 sm:p-2 transition-colors duration-200"
+                aria-label="Close terms of service"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-2 sm:p-4 max-h-[80vh] sm:max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2 sm:space-y-4 text-xs sm:text-sm text-gray-600">
+                <p>By using this application, you agree to the following:</p>
+                <div>
+                  <p className="font-semibold">Usage</p>
+                  <p>This app is provided "as is" without warranties. Use at your own discretion.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Content</p>
+                  <p>We do not guarantee the accuracy of responses and are not responsible for any decisions based on them.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Data</p>
+                  <p>You agree not to misuse or exploit the app in ways that violate laws or ethical guidelines.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">No Liability</p>
+                  <p>We are not responsible for any outcomes, decisions, or actions taken based on the app's responses.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Acceptable Use</p>
+                  <p>You agree not to use this app for illegal, harmful, or unethical purposes. Abuse may result in access restrictions.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Changes</p>
+                  <p>These terms may be updated at any time. Continued use implies acceptance of changes.</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Privacy Policy Panel */}
-      {showPrivacy && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white border rounded-lg shadow-lg z-50">
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Privacy Policy</h3>
-            <button
-              onClick={() => setShowPrivacy(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ×
-            </button>
-          </div>
-          <div className="p-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-4 text-sm text-gray-600">
-              <div>
-                <p className="font-semibold">Data Collection</p>
-                <p>We may collect input text and usage data to improve performance. We do not store personal information.</p>
+        {/* Privacy Policy Panel */}
+        {showPrivacy && (
+          <div className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:left-1/2 sm:transform sm:-translate-x-1/2 w-full sm:w-auto sm:max-w-2xl bg-white border rounded-lg shadow-lg z-50 m-4 sm:m-0 animate-slide-in">
+            <div className="p-2 sm:p-4 border-b flex justify-between items-center">
+              <h3 className="text-sm sm:text-lg font-semibold">Privacy Policy</h3>
+              <button
+                onClick={() => setShowPrivacy(false)}
+                className="text-gray-500 hover:text-gray-700 p-1 sm:p-2 transition-colors duration-200"
+                aria-label="Close privacy policy"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-2 sm:p-4 max-h-[80vh] sm:max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2 sm:space-y-4 text-xs sm:text-sm text-gray-600">
+                <div>
+                  <p className="font-semibold">Data Collection</p>
+                  <p>We may collect input text and usage data to improve performance. We do not store personal information.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Third-Party Services</p>
+                  <p>Our app may interact with external APIs, but we do not share identifiable user data.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Cookies</p>
+                  <p>We may use cookies or local storage for app functionality.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Your Rights</p>
+                  <p>You can stop using the app at any time. Contact us for data inquiries.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">What We Collect</p>
+                  <p>We may collect basic usage data, such as queries or interactions, to improve app functionality. However, we do not collect personally identifiable information.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">How We Use Your Data</p>
+                  <p>Any collected data is used solely for app improvements and analytics. We do not sell, rent, or trade your information with third parties.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Third-Party Services</p>
+                  <p>Our app may interact with external APIs, but no personal user data is shared with these services.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Cookies & Local Storage</p>
+                  <p>We may use cookies or local storage for app functionality, but not for tracking purposes.</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Your Choices</p>
+                  <p>You can stop using the app at any time. If you have concerns about data usage, you can contact us.</p>
+                </div>
+                <p className="mt-4">By continuing, you agree to these terms.</p>
               </div>
-              <div>
-                <p className="font-semibold">Third-Party Services</p>
-                <p>Our app may interact with external APIs, but we do not share identifiable user data.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Cookies</p>
-                <p>We may use cookies or local storage for app functionality.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Your Rights</p>
-                <p>You can stop using the app at any time. Contact us for data inquiries.</p>
-              </div>
-              <div>
-                <p className="font-semibold">What We Collect</p>
-                <p>We may collect basic usage data, such as queries or interactions, to improve app functionality. However, we do not collect personally identifiable information.</p>
-              </div>
-              <div>
-                <p className="font-semibold">How We Use Your Data</p>
-                <p>Any collected data is used solely for app improvements and analytics. We do not sell, rent, or trade your information with third parties.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Third-Party Services</p>
-                <p>Our app may interact with external APIs, but no personal user data is shared with these services.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Cookies & Local Storage</p>
-                <p>We may use cookies or local storage for app functionality, but not for tracking purposes.</p>
-              </div>
-              <div>
-                <p className="font-semibold">Your Choices</p>
-                <p>You can stop using the app at any time. If you have concerns about data usage, you can contact us.</p>
-              </div>
-              <p className="mt-4">By continuing, you agree to these terms.</p>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

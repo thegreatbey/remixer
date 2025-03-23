@@ -3,6 +3,8 @@ node_modules
 dist
 backups/tweets_backup.json
 .standard_operating_procedures
+RESPONSIVE_IMPLEMENTATION.md
+MOBILE_RESPONSIVE_IMPLEMENTATION.md
 .env.production
 # Protected content generation rules
 server/content_generation_rules/*.json

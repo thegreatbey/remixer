@@ -71,7 +71,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
         return (
           <div 
             key={tweet.id} 
-            className={`${isSavedList ? 'p-3' : 'p-4'} rounded-lg shadow relative ${
+            className={`${isSavedList ? 'p-2 sm:p-3' : 'p-3 sm:p-4'} rounded-lg shadow relative ${
               isConversationMode ? 'bg-purple-50 border border-purple-200' : 
               isTweeted ? 'bg-blue-50 border border-blue-200' : 
               'bg-white'
@@ -79,39 +79,57 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
           >
             {/* Visual indicator for tweets that have been shared */}
             {isTweeted && (
-              <div className="absolute top-2 right-2 bg-blue-500 bg-opacity-50 text-white text-xs px-2 py-1 rounded-full z-10 backdrop-blur-sm">
+              <div className="absolute top-1 sm:top-2 right-1 sm:right-2 bg-blue-500 bg-opacity-50 text-white text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full z-10 backdrop-blur-sm">
                 Tweeted
               </div>
             )}
             
             {/* Visual indicator for conversation mode tweets */}
             {isConversationMode && (
-              <div className={`absolute ${isTweeted ? 'top-9' : 'top-2'} right-2 bg-purple-600 bg-opacity-50 text-white text-xs px-2 py-1 rounded-full z-10 backdrop-blur-sm`}>
+              <div className={`absolute ${isTweeted ? 'top-7 sm:top-9' : 'top-1 sm:top-2'} right-1 sm:right-2 bg-purple-600 bg-opacity-50 text-white text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full z-10 backdrop-blur-sm`}>
                 Conversation
               </div>
             )}
             
             {/* The actual tweet content */}
-            <p className={`text-gray-800 text-justify ${isSavedList ? 'mb-1 text-sm' : 'mb-2'} pr-2`}>{tweet.content}</p>
+            <p className={`text-gray-800 text-justify ${isSavedList ? 'mb-1 text-xs sm:text-sm' : 'mb-2 text-sm sm:text-base'} pr-2`}>{tweet.content}</p>
             
             {/* Display source URL if available */}
             {tweetSourceUrl && (
-              <p className={`${isSavedList ? 'mt-1' : 'mt-2'} text-sm text-gray-600`}>
+              <p className={`${isSavedList ? 'mt-1' : 'mt-2'} text-xs sm:text-sm text-gray-600`}>
                 Source: <a href={tweetSourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{tweetSourceUrl}</a>
               </p>
             )}
             
             {/* Character count indicator */}
-            <div className={`text-sm ${isValidTweet ? 'text-gray-500' : 'text-red-500'}`}>
-              {remainingChars} characters remaining
+            <div className={`text-xs sm:text-sm ${isValidTweet ? 'text-gray-500' : 'text-red-500'} flex items-center justify-between`}>
+              <span>{remainingChars} characters remaining</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(tweet.content);
+                  // Show a temporary success message
+                  const button = document.getElementById(`copy-${tweet.id}`);
+                  if (button) {
+                    button.textContent = 'Copied!';
+                    setTimeout(() => {
+                      button.textContent = 'Copy';
+                    }, 2000);
+                  }
+                }}
+                id={`copy-${tweet.id}`}
+                className="text-xs sm:text-sm text-blue-500 hover:text-blue-600 px-2 py-0.5 rounded hover:bg-blue-50 transition-colors duration-200"
+                aria-label="Copy tweet to clipboard"
+              >
+                Copy
+              </button>
             </div>
             
             {/* Action buttons with context-appropriate styling */}
-            <div className={`${isSavedList ? 'mt-1' : 'mt-2'} flex space-x-2`}>
+            <div className={`${isSavedList ? 'mt-1' : 'mt-2'} flex flex-wrap gap-1 sm:gap-2`}>
               {/* Tweet/Tweet Again button */}
               <button 
                 onClick={() => handleTweetThis(tweet, tweet.content, tweetSourceUrl)}
-                className={`${isSavedList ? 'px-3 py-1 text-sm' : 'px-4 py-2'} text-white rounded ${
+                className={`${isSavedList ? 'px-2 sm:px-3 py-1 text-xs sm:text-sm' : 'px-3 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base'} text-white rounded transition-colors duration-200 ${
                   isTweeted 
                     ? 'bg-blue-400 hover:bg-blue-500' // Lighter blue for already tweeted
                     : 'bg-blue-500 hover:bg-blue-600'
@@ -125,7 +143,7 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
                 <button
                   onClick={() => onSaveTweet?.(tweet)}
                   disabled={!isValidTweet}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded transition-colors duration-200 ${
                     isValidTweet 
                       ? 'bg-green-500 hover:bg-green-600 text-white' 
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -139,10 +157,9 @@ const SavedTweets: React.FC<SavedTweetsProps> = ({
               {onDeleteTweet && isSavedList && (
                 <button 
                   onClick={() => {
-                    // Debug log removed for production
                     onDeleteTweet(tweet);
                   }}
-                  className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200"
                 >
                   Delete Tweet
                 </button>

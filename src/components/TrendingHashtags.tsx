@@ -113,8 +113,8 @@ const TrendingHashtags = () => {
   // Display the trending hashtags in a horizontally scrolling container
   // We duplicate the content to create a seamless loop
   return (
-    <div className="overflow-hidden w-[300px] relative">
-      <div className="inline-block whitespace-nowrap animate-scroll text-black text-base">
+    <div className="overflow-hidden w-[150px] sm:w-[300px] relative">
+      <div className="inline-block whitespace-nowrap animate-scroll text-black text-xs sm:text-base">
         <HashtagDisplay />
         <HashtagDisplay />
         <HashtagDisplay />

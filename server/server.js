@@ -226,7 +226,14 @@ const parseTweetsFromResponse = (data, expectedTweetCount = 3) => {
     )
     .filter(tweet => {
       // Account for URL length in validation
-      const urlLength = 25;  // Twitter's t.co URL shortener length
+      let urlLength = 23; // Default to HTTP URL length
+      if (sourceUrl) {
+        if (sourceUrl.startsWith('http://')) {
+          urlLength = 23; // HTTP URLs count as 23 characters
+        } else if (sourceUrl.startsWith('https://')) {
+          urlLength = 25; // HTTPS URLs count as 25 characters
+        }
+      }
       return tweet.length + urlLength <= 280;
     });
   

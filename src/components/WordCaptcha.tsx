@@ -66,17 +66,17 @@ const WordCaptcha: React.FC<WordCaptchaProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="w-full bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4 text-center text-gray-800">Quick Verification</h2>
-      <p className="mb-4 text-center text-gray-600">
+    <div className="w-full bg-white p-3 sm:p-6 rounded-lg shadow-md">
+      <h2 className="text-base sm:text-xl font-semibold mb-2 sm:mb-4 text-center text-gray-800">Quick Verification</h2>
+      <p className="mb-2 sm:mb-4 text-center text-xs sm:text-base text-gray-600">
         Please complete this verification to continue as a guest user.
       </p>
       
       {currentChallenge && (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-4">
           <div className="text-center">
-            <label htmlFor="captcha-input" className="block mb-2 text-gray-700">
-              Type the missing letter: <span className="font-bold text-lg">{currentChallenge.display}</span>
+            <label htmlFor="captcha-input" className="block mb-1 sm:mb-2 text-xs sm:text-base text-gray-700">
+              Type the missing letter: <span className="font-bold text-sm sm:text-lg">{currentChallenge.display}</span>
               <span className="sr-only">The complete word is {currentChallenge.complete}</span>
             </label>
             <input
@@ -85,14 +85,14 @@ const WordCaptcha: React.FC<WordCaptchaProps> = ({ onSuccess }) => {
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               maxLength={1}
-              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center w-16"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center w-10 sm:w-16 text-sm sm:text-lg"
               aria-label={`Enter the missing letter for ${currentChallenge.complete}`}
               autoFocus
             />
           </div>
           
           {error && (
-            <div className="text-red-500 text-sm text-center" role="alert">
+            <div className="text-red-500 text-xs sm:text-sm text-center bg-red-50 p-2 rounded-md" role="alert">
               {error}
             </div>
           )}
@@ -101,9 +101,9 @@ const WordCaptcha: React.FC<WordCaptchaProps> = ({ onSuccess }) => {
             <button
               type="submit"
               disabled={isSubmitting || !userInput.trim()}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg"
+              className="w-full px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-sm sm:text-base transition-colors duration-200"
             >
-              Verify
+              {isSubmitting ? 'Verifying...' : 'Verify'}
             </button>
           </div>
         </form>
