@@ -893,11 +893,12 @@ const App = () => {
       {successMessage && <SuccessNotification message={successMessage} />}
       <div className="min-h-screen bg-gray-100 p-2 sm:p-8 pt-4 sm:pt-16">
         <div className="max-w-4xl mx-auto p-2 sm:p-4">
-          <div className="flex flex-col">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-4">Tweet Reply Generator</h1>
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-0">Tweet Reply Generator</h1>
+            {/* Mobile-only single line layout */}
+            <div className="flex sm:hidden items-center justify-between gap-2">
               <TrendingHashtags />
-              <div className="flex items-center space-x-4 sm:space-x-9">
+              <div className="flex items-center space-x-4">
                 <a href="#" onClick={(e) => {
                   e.preventDefault();
                   window.location.href = 'mailto:' + 'hi' + '@' + 'twtbk.app';
@@ -914,8 +915,8 @@ const App = () => {
                   </div>
                 </a>
                 {user ? (
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <span className="text-sm sm:text-base text-gray-600">Welcome, {user.email}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Welcome, {user.email}</span>
                     <a
                       onClick={async () => {
                         try {
@@ -957,6 +958,68 @@ const App = () => {
                   </a>
                 )}
               </div>
+            </div>
+            {/* Desktop layout */}
+            <div className="hidden sm:flex items-center space-x-4 sm:space-x-9">
+              <TrendingHashtags />
+              <a href="#" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = 'mailto:' + 'hi' + '@' + 'twtbk.app';
+              }}
+                className="text-black hover:underline relative group"
+              >
+                hitwtbkapp
+                <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 left-0 mt-1 w-48 text-sm z-10">
+                  <div className="text-black font-bold">Get In Touch</div>
+                  <div className="text-black">{'>'} Suggestions</div>
+                  <div className="text-black">{'>'} Improvements</div>
+                  <div className="text-black">{'>'} Questions</div>
+                  <div className="text-black">{'>'} Just say hi!</div>
+                </div>
+              </a>
+              {user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-base text-gray-600">Welcome, {user.email}</span>
+                  <a
+                    onClick={async () => {
+                      try {
+                        const signOutTime = new Date();
+                        const { error: activityError } = await supabase.from('activity').update({
+                          sign_out_time: signOutTime.toISOString(),
+                          session_duration: Math.floor((signOutTime.getTime() - new Date(user.last_sign_in_at || signOutTime.toISOString()).getTime()) / 1000)
+                        }).eq('user_id', user.id).is('sign_out_time', null);
+
+                        if (activityError) {
+                          console.error('Error updating activity:', activityError);
+                        }
+
+                        await supabase.auth.signOut();
+                        setIsPopoutVisible(false);
+                      } catch (error) {
+                        console.error('Error during sign out:', error);
+                      }
+                    }}
+                    className="text-blue-500 hover:text-blue-600 cursor-pointer"
+                  >
+                    Sign Out
+                  </a>
+                </div>
+              ) : (
+                <a
+                  onClick={() => setShowAuth(true)}
+                  className="text-blue-500 hover:text-black-600 cursor-pointer relative group"
+                  title="Account Advantages"
+                >
+                  Sign In
+                  <div className="absolute hidden group-hover:block bg-white border border-gray-200 shadow-md rounded p-2 right-0 mt-1 w-48 text-sm z-10">
+                    <div className="font-semibold mb-1 text-black">Account Advantages</div>
+                    <div className="text-black">{'>'} Permanently save tweets</div>
+                    <div className="text-black">{'>'} #Hashtag generation</div>
+                    <div className="text-black">{'>'} More tweet options</div>
+                    <div className="text-black">{'>'} Conversation Mode</div>
+                  </div>
+                </a>
+              )}
             </div>
           </div>
           {/* Show Saved Tweets button - only when there are tweets for the current user/session */}
