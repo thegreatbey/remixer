@@ -12,8 +12,10 @@ A simple web application that lets you remix and transform text content using AI
 ## Tech Stack
 1. React (with Vite for fast development)
 2. Tailwind CSS for styling
-3. Vercel for deployment
-4. Claude API for content transformation
+3. Netlify for frontend deployment
+4. Render.io for backend services
+5. Vercel for domain management and SSL
+6. Claude API for content transformation
 
 ## Version Control
 - Uses Git for version control
